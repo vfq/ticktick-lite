@@ -44,15 +44,18 @@ jobs:
           find . -mindepth 1 -maxdepth 1 ! -name target -exec rm -rf {} +
           git init -q .
           git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # 该机到 github.com 的连接会**挂住**（不断开也不传数据），
+          # 单纯重试无效：必须给传输设低速阈值，让 git 自己中断后重试。
+          GIT=(git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=25)
           for i in 1 2 3 4 5 6; do
-            if git fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
-               || git fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
+            if "${GIT[@]}" fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
+               || "${GIT[@]}" fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
               git checkout -q FETCH_HEAD
               echo "checkout ok (attempt $i)"
               exit 0
             fi
-            echo "checkout attempt $i failed; retry in $((i*15))s"
-            sleep $((i*15))
+            echo "checkout attempt $i failed; retry in $((i*10))s"
+            sleep $((i*10))
           done
           echo "checkout failed after 6 attempts" >&2
           exit 1
@@ -90,15 +93,18 @@ jobs:
           find . -mindepth 1 -maxdepth 1 ! -name target -exec rm -rf {} +
           git init -q .
           git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # 该机到 github.com 的连接会**挂住**（不断开也不传数据），
+          # 单纯重试无效：必须给传输设低速阈值，让 git 自己中断后重试。
+          GIT=(git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=25)
           for i in 1 2 3 4 5 6; do
-            if git fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
-               || git fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
+            if "${GIT[@]}" fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
+               || "${GIT[@]}" fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
               git checkout -q FETCH_HEAD
               echo "checkout ok (attempt $i)"
               exit 0
             fi
-            echo "checkout attempt $i failed; retry in $((i*15))s"
-            sleep $((i*15))
+            echo "checkout attempt $i failed; retry in $((i*10))s"
+            sleep $((i*10))
           done
           echo "checkout failed after 6 attempts" >&2
           exit 1
@@ -137,15 +143,18 @@ jobs:
           find . -mindepth 1 -maxdepth 1 ! -name target -exec rm -rf {} +
           git init -q .
           git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # 该机到 github.com 的连接会**挂住**（不断开也不传数据），
+          # 单纯重试无效：必须给传输设低速阈值，让 git 自己中断后重试。
+          GIT=(git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=25)
           for i in 1 2 3 4 5 6; do
-            if git fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
-               || git fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
+            if "${GIT[@]}" fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
+               || "${GIT[@]}" fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
               git checkout -q FETCH_HEAD
               echo "checkout ok (attempt $i)"
               exit 0
             fi
-            echo "checkout attempt $i failed; retry in $((i*15))s"
-            sleep $((i*15))
+            echo "checkout attempt $i failed; retry in $((i*10))s"
+            sleep $((i*10))
           done
           echo "checkout failed after 6 attempts" >&2
           exit 1
@@ -181,15 +190,18 @@ jobs:
           find . -mindepth 1 -maxdepth 1 ! -name target -exec rm -rf {} +
           git init -q .
           git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # 该机到 github.com 的连接会**挂住**（不断开也不传数据），
+          # 单纯重试无效：必须给传输设低速阈值，让 git 自己中断后重试。
+          GIT=(git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=25)
           for i in 1 2 3 4 5 6; do
-            if git fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
-               || git fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
+            if "${GIT[@]}" fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
+               || "${GIT[@]}" fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
               git checkout -q FETCH_HEAD
               echo "checkout ok (attempt $i)"
               exit 0
             fi
-            echo "checkout attempt $i failed; retry in $((i*15))s"
-            sleep $((i*15))
+            echo "checkout attempt $i failed; retry in $((i*10))s"
+            sleep $((i*10))
           done
           echo "checkout failed after 6 attempts" >&2
           exit 1
