@@ -11,7 +11,8 @@ updated: 2026-11-26
 
 - [ ] `cargo fmt --all -- --check` 通过（本机）
 - [ ] CI `CI` workflow 全绿（`fmt` / `clippy (core)` / `test (core)` / `docs`）
-- [ ] `windows-check` workflow 手动跑过一次且通过（app + plugin 的真实编译）
+- [ ] 本机 `cargo check --workspace --all-targets` 与 `cargo check -p ticktick-app --no-default-features` 均 0 error 0 warning（CI 覆盖不到 app/plugin，见 ADR-0002）
+- [ ] 可选：`gh workflow run windows-check.yml -f full_build=true` 拿 Windows 产物。**该 workflow 跑在 GitHub 托管 runner 上，本账户因计费无法分配时会长挂 queued**，此时改用本机 `cargo build --release`
 - [ ] 无 `TODO` / `dbg!` / `println!` 残留（`rg -n 'dbg!|println!' crates plugins`）
 - [ ] `Cargo.lock` 已提交且与 `Cargo.toml` 一致
 
@@ -33,13 +34,15 @@ updated: 2026-11-26
 
 - [ ] 窗口可拖动；双击标题栏行为符合预期
 - [ ] 置顶开关生效，重启后保持
-- [ ] 关闭按钮隐藏到托盘；托盘菜单「显示 / 退出」正常
+- [ ] 关闭按钮隐藏到托盘；**设置窗口同时关闭、不残留**；托盘菜单「显示 / 退出」正常
 - [ ] 设置窗口：打开 → 关闭 → 再打开（不产生两个窗口），可拖动
-- [ ] 番茄钟：默认不展开；展开/收起；倒计时在标题栏
-- [ ] **系统通知**：番茄钟到点弹出，应用名为「滴答 Lite」（不是「Windows PowerShell」）
-- [ ] 标签：多选、改色、改名、删除、点击筛选
+- [ ] 设置改动即时生效：改「显示已完成」主窗立刻变化；改番茄钟时长后下一次 Idle 按新值计
+- [ ] 番茄钟：默认不展开；点标题栏 🍅 展开/收起；收起后计时不断、标题栏显示 `MM:SS`
+- [ ] **系统通知**：番茄钟到点弹出，应用名为「滴答 Lite」（不是「Windows PowerShell」）；关掉 `pomodoro.notify` 后不再弹
+- [ ] 标签：多选、改色、改名、删除（任务保留）、点击 chip 筛选、筛选条可移除
+- [ ] 新增同名标签报「标签「x」已存在」，不产生重复行
 - [ ] 清单 chip 行在 5 个清单 + 长名下不遮挡
-- [ ] 导出 JSON：选 vault → 选路径 → 文件可解析
+- [ ] 导出 JSON：选 vault → 选路径 → 文件可解析，`format_version == 2` 且 `tags[].color` 为 `#RRGGBB`
 
 ## 5. 发布
 
