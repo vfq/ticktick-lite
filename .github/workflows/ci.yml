@@ -15,6 +15,11 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # 该机 3.6G 内存，全并行 codegen 容易 OOM（rustc 被 SIGKILL）
+  CARGO_BUILD_JOBS: "2"
+  # 官方源在该机实测约 32KB/s，装工具链必须走中科大镜像
+  RUSTUP_DIST_SERVER: https://mirrors.ustc.edu.cn/rust-static
+  RUSTUP_UPDATE_ROOT: https://mirrors.ustc.edu.cn/rust-static/rustup
 
 jobs:
   fmt:
@@ -29,8 +34,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Show toolchain
-        run: rustup show
+      - name: Setup Rust
+        # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
+        # rust-toolchain.toml 锁定 1.98，rustup 会按需安装（走顶层的 USTC 镜像）。
+        run: |
+          set -eu
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustup show
       - name: cargo fmt
         run: cargo fmt --all -- --check
 
@@ -48,8 +59,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Show toolchain
-        run: rustup show
+      - name: Setup Rust
+        # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
+        # rust-toolchain.toml 锁定 1.98，rustup 会按需安装（走顶层的 USTC 镜像）。
+        run: |
+          set -eu
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustup show
       - name: Install clippy
         run: rustup component add clippy
       - name: cargo clippy
@@ -68,8 +85,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Show toolchain
-        run: rustup show
+      - name: Setup Rust
+        # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
+        # rust-toolchain.toml 锁定 1.98，rustup 会按需安装（走顶层的 USTC 镜像）。
+        run: |
+          set -eu
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustup show
       - name: cargo test
         run: cargo test -p ticktick-core --locked
 
