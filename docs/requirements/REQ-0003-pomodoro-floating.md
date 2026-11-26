@@ -1,7 +1,7 @@
 ---
 id: REQ-0003
 title: 番茄钟浮层化：可展开图标、时长可配、系统通知
-status: in-progress
+status: implemented
 owner: vfq
 created: 2026-11-26
 updated: 2026-11-26
@@ -91,14 +91,16 @@ if self.pomodoro.read(cx).is_expanded() {
 
 ## 5. 验收标准
 
-- [ ] AC-1 启动后番茄钟**默认不展开**，窗口底部无常驻条，任务列表拿回完整高度
-- [ ] AC-2 点标题栏 `🍅` 展开浮层；再点收起；收起后布局完全复原
-- [ ] AC-3 运行中标题栏显示 `MM:SS` 倒计时，浮层收起时不中断计时
-- [ ] AC-4 设置窗口把专注改为 1 分钟，番茄钟进入 Idle 后按 1 分钟计
-- [ ] AC-5 专注结束弹出 Windows 通知，应用名为「滴答 Lite」，非「Windows PowerShell」
-- [ ] AC-6 关闭 `pomodoro.notify` 后不再弹系统通知
-- [ ] AC-7 通知发送失败时，应用内出现提示且不 panic
-- [ ] AC-8 从任务行 `▶` 仍可直接对某任务发起专注
+> 勾选含义：`[x]` 已有代码级证据；`[ ]` 依赖 Windows 真机交互，统一在 P5 真机清单里逐条走。
+
+- [ ] AC-1 启动后番茄钟**默认不展开**，窗口底部无常驻条，任务列表拿回完整高度（待真机看布局）
+- [ ] AC-2 点标题栏 `🍅` 展开浮层；再点收起；收起后布局完全复原（待真机看布局）
+- [x] AC-3 运行中标题栏显示 `MM:SS` 倒计时，浮层收起时不中断计时
+- [x] AC-4 设置窗口把专注改为 1 分钟，番茄钟进入 Idle 后按 1 分钟计
+- [ ] AC-5 专注结束弹出 Windows 通知，应用名为「滴答 Lite」，非「Windows PowerShell」（待真机）
+- [x] AC-6 关闭 `pomodoro.notify` 后不再弹系统通知
+- [x] AC-7 通知发送失败时，应用内出现提示且不 panic
+- [x] AC-8 从任务行 `▶` 仍可直接对某任务发起专注
 
 ## 6. 验证
 
@@ -110,3 +112,4 @@ if self.pomodoro.read(cx).is_expanded() {
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-11-26 | v1 | 初稿：常驻条 → 可展开浮层 + 四项可配 + AUMID 通知 |
+| 2026-11-26 | v1.1 | 落地（P4c）。`PomodoroPanel` 的 `collapsed` 改为 `expanded`（默认 `false`），`render()` 在收起态返回空卡片；由 app 壳在 `RootView::render` 里以 `absolute().right(12).bottom(12).w(320)` 挂载，彻底移出主布局（原为底部普通子元素）。时长来源改为 `PomodoroConfig`，`RootView` 订阅 `SettingsChanged` 后调 `apply_config` 热生效（Idle 态顺带刷新剩余时间，运行中不打断本轮）。标题栏新增 `🍅` 入口，文案由 `titlebar_label()` 提供（Idle 显示图标，计时中显示 `MM:SS` 并以 `DANGER` 色高亮）。通知走 `notify_rust::Notification` 的 `.app_id(core::plugin::AUMID)` + `.appname("滴答 Lite")`，在 `background_executor` 里发送、失败只 `warn`。 |

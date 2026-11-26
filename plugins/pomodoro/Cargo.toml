@@ -9,3 +9,4 @@ description = "Pomodoro timer plugin for TickTick Lite"
 ticktick-core.workspace = true
 gpui-kit = "0.8.1"
 notify-rust = "4"
+log = "0.4"

@@ -1,16 +1,18 @@
-//! 番茄钟面板：状态机 + 1s 心跳 + gpui 渲染。
+//! 番茄钟面板：状态机 + 1s 心跳 + 右下角浮层卡片。
+//!
+//! 形态见 `docs/requirements/REQ-0003-pomodoro-floating.md`：
+//! - 默认不展开（`expanded = false`），窗口底部不再有常驻条；
+//! - 展开后由 app 壳定位到右下角，卡片自身不关心挂载位置；
+//! - 标题栏的入口文案由 [`PomodoroPanel::titlebar_label`] 提供；
+//! - 时长全部来自 `core::settings::PomodoroConfig`，改设置后 `apply_config` 热生效。
 
 use std::time::Duration;
 
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 use ticktick_core::model::{new_id, now_ts};
-use ticktick_core::{Database, PomodoroKind, PomodoroSession, repo};
-
-const DEFAULT_FOCUS_MINS: i64 = 25;
-const DEFAULT_SHORT_BREAK_MINS: i64 = 5;
-const DEFAULT_LONG_BREAK_MINS: i64 = 15;
-const ROUNDS_PER_LONG_BREAK: u32 = 4;
+use ticktick_core::plugin::AUMID;
+use ticktick_core::{Database, PomodoroConfig, PomodoroKind, PomodoroSession, repo};
 
 const COLOR_FOCUS: u32 = 0xE5484D;
 const COLOR_BREAK: u32 = 0x30A46C;
@@ -53,7 +55,8 @@ pub enum PomodoroEvent {
 
 pub struct PomodoroPanel {
     db: Database,
-    collapsed: bool,
+    /// 浮层是否展开（默认收起，只留标题栏图标）
+    expanded: bool,
     phase: Phase,
     running: bool,
     remaining_secs: i64,
@@ -64,9 +67,7 @@ pub struct PomodoroPanel {
     linked_task: Option<(String, String)>,
     session_id: Option<String>,
     session_started_at: i64,
-    focus_mins: i64,
-    short_break_mins: i64,
-    long_break_mins: i64,
+    config: PomodoroConfig,
     _tick: Option<Task<()>>,
 }
 
@@ -74,45 +75,66 @@ impl EventEmitter<PomodoroEvent> for PomodoroPanel {}
 
 impl PomodoroPanel {
     pub fn new(_cx: &mut Context<Self>, db: Database) -> Self {
-        let (focus, short_b, long_b) = Self::load_settings(&db);
+        let config = Self::load_config(&db);
         Self {
             db,
-            collapsed: false,
+            expanded: false,
             phase: Phase::Idle,
             running: false,
-            remaining_secs: focus * 60,
-            planned_secs: focus * 60,
+            remaining_secs: config.focus_secs(),
+            planned_secs: config.focus_secs(),
             cycles: 0,
             linked_task: None,
             session_id: None,
             session_started_at: 0,
-            focus_mins: focus,
-            short_break_mins: short_b,
-            long_break_mins: long_b,
+            config,
             _tick: None,
         }
     }
 
-    fn load_settings(db: &Database) -> (i64, i64, i64) {
-        let read = |key: &str, default: i64| -> i64 {
-            db.connect()
-                .ok()
-                .and_then(|conn| repo::get_setting(&conn, key).ok().flatten())
-                .and_then(|v| v.parse::<i64>().ok())
-                .filter(|v| *v > 0 && *v <= 180)
-                .unwrap_or(default)
-        };
-        (
-            read("pomodoro_focus_mins", DEFAULT_FOCUS_MINS),
-            read("pomodoro_short_break_mins", DEFAULT_SHORT_BREAK_MINS),
-            read("pomodoro_long_break_mins", DEFAULT_LONG_BREAK_MINS),
-        )
+    fn load_config(db: &Database) -> PomodoroConfig {
+        db.connect()
+            .ok()
+            .and_then(|conn| ticktick_core::AppSettings::load(&conn).ok())
+            .map(|s| s.pomodoro)
+            .unwrap_or_default()
+            .clamped()
+    }
+
+    /// 设置窗口改了时长后由 app 壳调用。
+    ///
+    /// Idle 态顺带刷新剩余时间（让"改成 1 分钟"立刻可见）；
+    /// 运行中只换参数，不打断当前这一轮计时。
+    pub fn apply_config(&mut self, config: PomodoroConfig, cx: &mut Context<Self>) {
+        self.config = config.clamped();
+        if self.phase == Phase::Idle && !self.running {
+            self.planned_secs = self.config.focus_secs();
+            self.remaining_secs = self.planned_secs;
+        }
+        cx.notify();
+    }
+
+    pub fn is_expanded(&self) -> bool {
+        self.expanded
+    }
+
+    pub fn toggle_expanded(&mut self, cx: &mut Context<Self>) {
+        self.expanded = !self.expanded;
+        cx.notify();
+    }
+
+    /// 标题栏入口文案：Idle 显示图标，运行/暂停时显示等宽倒计时。
+    pub fn titlebar_label(&self) -> (String, bool) {
+        match self.phase {
+            Phase::Idle => ("🍅".to_string(), false),
+            _ => (self.time_text(), true),
+        }
     }
 
     /// 从任务行发起的入口：关联任务并开始专注。
     pub fn start_for_task(&mut self, task_id: String, title: String, cx: &mut Context<Self>) {
         self.linked_task = Some((task_id, title));
-        self.collapsed = false;
+        self.expanded = true;
         self.start_phase(Phase::Focus, cx);
     }
 
@@ -120,12 +142,19 @@ impl PomodoroPanel {
         self.running
     }
 
+    fn time_text(&self) -> String {
+        format!(
+            "{:02}:{:02}",
+            self.remaining_secs / 60,
+            self.remaining_secs % 60
+        )
+    }
+
     fn phase_secs(&self, phase: Phase) -> i64 {
         match phase {
-            Phase::Focus => self.focus_mins * 60,
-            Phase::ShortBreak => self.short_break_mins * 60,
-            Phase::LongBreak => self.long_break_mins * 60,
-            Phase::Idle => self.focus_mins * 60,
+            Phase::Focus | Phase::Idle => self.config.focus_secs(),
+            Phase::ShortBreak => self.config.short_break_secs(),
+            Phase::LongBreak => self.config.long_break_secs(),
         }
     }
 
@@ -171,12 +200,8 @@ impl PomodoroPanel {
     fn abandon_pending_session(&mut self) {
         if let Some(id) = self.session_id.take() {
             let actual = (now_ts() - self.session_started_at).max(0);
-            let was_focus = self.phase == Phase::Focus;
             if let Ok(conn) = self.db.connect() {
                 let _ = repo::finish_pomodoro_session(&conn, &id, actual, now_ts(), false);
-            }
-            if was_focus {
-                // 注意：此时不能 emit（没有 cx），由调用方在后续 emit
             }
         }
     }
@@ -224,8 +249,8 @@ impl PomodoroPanel {
                     task_id,
                     finished: true,
                 });
-                toast("专注完成", "休息一下吧，下一轮更高效");
-                let next = if self.cycles % ROUNDS_PER_LONG_BREAK == 0 {
+                self.notify(cx, "专注完成", "休息一下吧，下一轮更高效");
+                let next = if self.cycles % self.config.rounds_per_long_break.max(1) == 0 {
                     Phase::LongBreak
                 } else {
                     Phase::ShortBreak
@@ -233,9 +258,9 @@ impl PomodoroPanel {
                 self.start_phase(next, cx);
             }
             Phase::ShortBreak | Phase::LongBreak => {
-                toast("休息结束", "开始下一个专注吧");
+                self.notify(cx, "休息结束", "开始下一个专注吧");
                 self.phase = Phase::Idle;
-                self.planned_secs = self.focus_mins * 60;
+                self.planned_secs = self.config.focus_secs();
                 self.remaining_secs = self.planned_secs;
                 cx.emit(PomodoroEvent::PhaseChanged);
                 cx.notify();
@@ -258,7 +283,7 @@ impl PomodoroPanel {
         self.abandon_pending_session();
         self.phase = Phase::Idle;
         self.running = false;
-        self.planned_secs = self.focus_mins * 60;
+        self.planned_secs = self.config.focus_secs();
         self.remaining_secs = self.planned_secs;
         if was_focus {
             cx.emit(PomodoroEvent::FocusSessionEnded {
@@ -281,70 +306,50 @@ impl PomodoroPanel {
         }
         (1.0 - self.remaining_secs as f32 / self.planned_secs as f32).clamp(0.0, 1.0)
     }
+
+    /// 发系统通知。开关关闭时不创建后台任务；失败只 warn，不影响计时流转。
+    fn notify(&self, cx: &mut Context<Self>, title: &str, body: &str) {
+        if !self.config.notify {
+            return;
+        }
+        let (summary, content) = (title.to_string(), body.to_string());
+        cx.background_executor()
+            .spawn(async move {
+                let result = notify_rust::Notification::new()
+                    .app_id(AUMID)
+                    .appname("滴答 Lite")
+                    .summary(&summary)
+                    .body(&content)
+                    .show();
+                if let Err(e) = result {
+                    log::warn!("系统通知发送失败: {e}");
+                }
+            })
+            .detach();
+    }
 }
 
 impl Render for PomodoroPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let running_or_paused = self.phase != Phase::Idle;
-        let time_text = format!(
-            "{:02}:{:02}",
-            self.remaining_secs / 60,
-            self.remaining_secs % 60
-        );
-        let bar_color = match self.phase {
-            Phase::Focus => COLOR_FOCUS,
-            Phase::ShortBreak | Phase::LongBreak => COLOR_BREAK,
-            Phase::Idle => COLOR_FOCUS,
-        };
-        let collapse_icon = if self.collapsed { "▸" } else { "▾" };
+        let mut card = div().w_full().flex().flex_col().gap_2();
+        if !self.expanded {
+            // 收起态不占空间：入口在标题栏
+            return card;
+        }
 
-        let mut body = div().flex().flex_col().gap_2();
-        if !self.collapsed {
-            // 时间 + 阶段
-            body = body.child(
-                div()
-                    .flex()
-                    .flex_row()
-                    .items_baseline()
-                    .gap_2()
-                    .child(
-                        div()
-                            .text_2xl()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(rgb(if self.phase == Phase::Idle {
-                                COLOR_MUTED
-                            } else {
-                                bar_color
-                            }))
-                            .child(time_text),
-                    )
-                    .child(div().text_xs().text_color(rgb(COLOR_MUTED)).child(format!(
-                        "{} · 第 {} 轮",
-                        self.phase.label(),
-                        self.cycles + 1
-                    ))),
-            );
-            // 进度条
-            body = body.child(
-                div()
-                    .w_full()
-                    .h_1()
-                    .rounded_full()
-                    .bg(rgb(COLOR_TRACK))
-                    .child(
-                        div()
-                            .h_full()
-                            .w(relative(self.progress()))
-                            .rounded_full()
-                            .bg(rgb(bar_color)),
-                    ),
-            );
-            // 关联任务
-            let linked = match &self.linked_task {
-                Some((_, title)) => format!("关联任务：{title}"),
-                None => "未关联任务（点任务行右侧 ▶ 发起专注）".to_string(),
-            };
-            body = body.child(
+        let bar_color = match self.phase {
+            Phase::ShortBreak | Phase::LongBreak => COLOR_BREAK,
+            _ => COLOR_FOCUS,
+        };
+        let percent = (self.progress() * 100.0).round() as i32;
+
+        card = card
+            .p_3()
+            .rounded_lg()
+            .border_1()
+            .border_color(rgb(COLOR_BORDER))
+            .bg(rgb(0xFFFFFF))
+            .child(
                 div()
                     .flex()
                     .flex_row()
@@ -354,8 +359,86 @@ impl Render for PomodoroPanel {
                         div()
                             .text_xs()
                             .text_color(rgb(COLOR_MUTED))
-                            .overflow_hidden()
-                            .child(linked),
+                            .child(self.phase.label().to_string()),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .text_xl()
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(rgb(if self.phase == Phase::Idle {
+                                        COLOR_MUTED
+                                    } else {
+                                        bar_color
+                                    }))
+                                    .child(self.time_text()),
+                            )
+                            .child(
+                                div()
+                                    .id("pomo-collapse")
+                                    .cursor_pointer()
+                                    .px_1()
+                                    .text_xs()
+                                    .text_color(rgb(COLOR_MUTED))
+                                    .hover(|s| s.text_color(rgb(COLOR_TEXT)))
+                                    .on_click(
+                                        cx.listener(|this, _, _, cx| this.toggle_expanded(cx)),
+                                    )
+                                    .child("▾"),
+                            ),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex_1()
+                            .h_1()
+                            .rounded_full()
+                            .bg(rgb(COLOR_TRACK))
+                            .child(
+                                div()
+                                    .h_full()
+                                    .w(relative(self.progress()))
+                                    .rounded_full()
+                                    .bg(rgb(bar_color)),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .w(px(34.0))
+                            .text_xs()
+                            .text_color(rgb(COLOR_MUTED))
+                            .child(format!("{percent}%")),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_xs()
+                            .truncate()
+                            .text_color(rgb(COLOR_MUTED))
+                            .child(match &self.linked_task {
+                                Some((_, title)) => format!("关联任务：{title}"),
+                                None => "未关联任务".to_string(),
+                            }),
                     )
                     .when(self.linked_task.is_some(), |el| {
                         el.child(
@@ -368,79 +451,39 @@ impl Render for PomodoroPanel {
                         )
                     }),
             );
-            // 控制按钮
-            let controls = div().flex().flex_row().gap_2();
-            let controls = match (self.phase, self.running) {
-                (Phase::Idle, _) => controls
-                    .child(small_button("pomo-start", "开始专注", true).on_click(
-                        cx.listener(|this, _, _, cx| this.start_phase(Phase::Focus, cx)),
-                    )),
-                (_, true) => controls
-                    .child(
-                        small_button("pomo-pause", "暂停", false)
-                            .on_click(cx.listener(|this, _, _, cx| this.toggle_pause(cx))),
-                    )
-                    .child(
-                        if matches!(self.phase, Phase::ShortBreak | Phase::LongBreak) {
-                            small_button("pomo-skip", "跳过休息", false)
-                                .on_click(cx.listener(|this, _, _, cx| this.skip_break(cx)))
-                        } else {
-                            small_button("pomo-giveup", "放弃", false)
-                                .on_click(cx.listener(|this, _, _, cx| this.give_up(cx)))
-                        },
-                    ),
-                (_, false) => controls
-                    .child(
-                        small_button("pomo-resume", "继续", true)
-                            .on_click(cx.listener(|this, _, _, cx| this.toggle_pause(cx))),
-                    )
-                    .child(
-                        small_button("pomo-giveup", "放弃", false)
-                            .on_click(cx.listener(|this, _, _, cx| this.give_up(cx))),
-                    ),
-            };
-            body = body.child(controls);
-            let _ = running_or_paused;
-        }
 
-        div()
-            .flex()
-            .flex_col()
-            .gap_2()
-            .px_3()
-            .py_2()
-            .border_t_1()
-            .border_color(rgb(COLOR_BORDER))
-            .bg(rgb(0xFAFBFC))
-            .child(
-                div()
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(rgb(COLOR_TEXT))
-                            .child("🍅 番茄钟"),
-                    )
-                    .child(
-                        div()
-                            .id("pomo-collapse")
-                            .cursor_pointer()
-                            .px_1()
-                            .text_xs()
-                            .text_color(rgb(COLOR_MUTED))
-                            .hover(|s| s.text_color(rgb(COLOR_TEXT)))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.collapsed = !this.collapsed;
-                                cx.notify();
-                            }))
-                            .child(collapse_icon),
-                    ),
-            )
-            .child(body)
+        let controls = div().flex().flex_row().gap_2();
+        let controls = match (self.phase, self.running) {
+            (Phase::Idle, _) => controls.child(
+                small_button("pomo-start", "开始专注", true)
+                    .on_click(cx.listener(|this, _, _, cx| this.start_phase(Phase::Focus, cx))),
+            ),
+            (_, true) => controls
+                .child(
+                    small_button("pomo-pause", "暂停", false)
+                        .on_click(cx.listener(|this, _, _, cx| this.toggle_pause(cx))),
+                )
+                .child(
+                    if matches!(self.phase, Phase::ShortBreak | Phase::LongBreak) {
+                        small_button("pomo-skip", "跳过休息", false)
+                            .on_click(cx.listener(|this, _, _, cx| this.skip_break(cx)))
+                    } else {
+                        small_button("pomo-giveup", "放弃", false)
+                            .on_click(cx.listener(|this, _, _, cx| this.give_up(cx)))
+                    },
+                ),
+            (_, false) => controls
+                .child(
+                    small_button("pomo-resume", "继续", true)
+                        .on_click(cx.listener(|this, _, _, cx| this.toggle_pause(cx))),
+                )
+                .child(
+                    small_button("pomo-giveup", "放弃", false)
+                        .on_click(cx.listener(|this, _, _, cx| this.give_up(cx))),
+                ),
+        };
+
+        card.child(controls)
     }
 }
 
@@ -463,12 +506,4 @@ fn small_button(id: &'static str, label: &'static str, primary: bool) -> Statefu
             .hover(|s| s.bg(rgb(0xE2E5E9)))
             .child(label)
     }
-}
-
-fn toast(title: &str, body: &str) {
-    let _ = notify_rust::Notification::new()
-        .appname("TickTick Lite")
-        .summary(title)
-        .body(body)
-        .show();
 }

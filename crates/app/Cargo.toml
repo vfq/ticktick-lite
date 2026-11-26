@@ -28,6 +28,9 @@ raw-window-handle = "0.6"
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
+    # 通知 AUMID 注册：RegCreateKeyExW 声明在 Win32_Security feature 下
+    "Win32_System_Registry",
+    "Win32_Security",
 ] }
 log = "0.4"
 env_logger = "0.11"

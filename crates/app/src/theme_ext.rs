@@ -5,7 +5,7 @@
 //! - 圆角 控件 6px、卡片 12px、chip 全圆角
 //! - 过渡 150ms ease-out，优先级使用「色条 + 分组标题」双编码
 
-use gpui_kit::{Rgba, rgb};
+use gpui_kit::{Hsla, Rgba, rgb};
 use ticktick_core::Priority;
 
 // 中性
@@ -53,6 +53,11 @@ pub fn priority_color(p: Priority) -> Rgba {
     rgb(p.color_hex())
 }
 
-pub fn tag_chip_color() -> Rgba {
-    rgb(BG_CHIP)
+/// 标签 chip 的三色由标签色派生，而不是硬编码灰。
+///
+/// 返回 `(底色, 文字色, 边框色)`：底色 14% 透明、边框 35% 透明，
+/// 这样调色板扩展时不需要为每个新色另写一套。
+pub fn tag_chip_colors(hex: u32) -> (Hsla, Hsla, Hsla) {
+    let c: Hsla = rgb(hex).into();
+    (c.opacity(0.14), c, c.opacity(0.35))
 }

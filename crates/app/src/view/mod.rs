@@ -1,6 +1,7 @@
 //! 根视图：标题栏 + 侧栏 + 任务区 + 番茄钟插件区 + 覆盖层。
 
 mod overlays;
+mod settings_window;
 mod sidebar;
 mod task_list;
 mod titlebar;
@@ -13,8 +14,10 @@ use gpui_kit::prelude::*;
 use gpui_kit::*;
 use ticktick_core::model::{Priority, TaskStatus, now_ts};
 use ticktick_core::repo::{self, NewTask, TaskFilter};
-use ticktick_core::{Database, Task as CoreTask, Vault};
+use ticktick_core::{Database, Tag, Task as CoreTask, Vault};
 
+use crate::platform;
+use crate::settings_store::{SettingsChanged, SettingsStore};
 use crate::theme_ext as tx;
 
 #[cfg(feature = "pomodoro")]
@@ -31,16 +34,24 @@ pub enum ToastKind {
 
 pub struct RootView {
     pub(crate) db: Database,
+    /// 设置单一真相：主窗与设置窗共享同一个实体
+    pub(crate) settings: Entity<SettingsStore>,
+    /// 已打开的设置窗口句柄（用于判活与去重）
+    pub(crate) settings_window: Option<AnyWindowHandle>,
     pub(crate) vaults: Vec<Vault>,
+    /// 全部标签（编辑器可选列表 + 筛选条显示名字），随 reload 刷新
+    pub(crate) all_tags: Vec<Tag>,
     pub(crate) tasks: Vec<CoreTask>,
     pub(crate) focus_totals: HashMap<String, i64>,
     pub(crate) vault_counts: HashMap<String, i64>,
     pub(crate) total_active: i64,
     pub(crate) filter_vault: Option<String>,
-    pub(crate) show_completed: bool,
-    pub(crate) topmost: bool,
+    /// 按标签筛选（OR 语义，空 = 不筛选）
+    pub(crate) filter_tags: Vec<String>,
     pub(crate) quick_add: Entity<InputState>,
     pub(crate) overlay: Option<Overlay>,
+    /// 任务编辑器里标签输入框的订阅（关层即释放，避免多次开层累积）
+    editor_tag_sub: Option<Subscription>,
     pub(crate) toast: Option<(String, ToastKind)>,
     _toast_task: Option<Task<()>>,
     #[cfg(feature = "pomodoro")]
@@ -49,7 +60,12 @@ pub struct RootView {
 }
 
 impl RootView {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>, db: Database) -> Self {
+    pub fn new(
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        db: Database,
+        settings: Entity<SettingsStore>,
+    ) -> Self {
         let quick_add =
             cx.new(|cx| InputState::new(window, cx).placeholder("添加任务，回车快速创建"));
 
@@ -61,6 +77,20 @@ impl RootView {
                 }
             }),
         );
+
+        // 设置变更（无论来自设置窗还是本窗）立刻生效：置顶跟随、列表跟随、番茄钟时长跟随
+        subs.push(cx.subscribe_in(
+            &settings,
+            window,
+            |this, _store, _event: &SettingsChanged, window, cx| {
+                let topmost = this.settings.read(cx).get().topmost;
+                platform::set_topmost(window, topmost);
+                this.sync_pomodoro_config(cx);
+                this.reload(cx);
+            },
+        ));
+
+        let initial_topmost = settings.read(cx).get().topmost;
 
         #[cfg(feature = "pomodoro")]
         let pomodoro = {
@@ -87,24 +117,74 @@ impl RootView {
 
         let mut view = Self {
             db,
+            settings,
+            settings_window: None,
             vaults: Vec::new(),
+            all_tags: Vec::new(),
             tasks: Vec::new(),
             focus_totals: HashMap::new(),
             vault_counts: HashMap::new(),
             total_active: 0,
             filter_vault: None,
-            show_completed: false,
-            topmost: false,
+            filter_tags: Vec::new(),
             quick_add,
             overlay: None,
+            editor_tag_sub: None,
             toast: None,
             _toast_task: None,
             #[cfg(feature = "pomodoro")]
             pomodoro,
             _subs: subs,
         };
+        // 启动时把数据库里的置顶偏好真正应用到窗口上
+        platform::set_topmost(window, initial_topmost);
+        view.sync_pomodoro_config(cx);
         view.reload(cx);
         view
+    }
+
+    /// 把设置里的番茄钟参数推给插件（插件自己不做持久化读取以外的判断）。
+    #[cfg(feature = "pomodoro")]
+    fn sync_pomodoro_config(&mut self, cx: &mut Context<Self>) {
+        let config = self.settings.read(cx).get().pomodoro;
+        self.pomodoro
+            .update(cx, |panel, cx| panel.apply_config(config, cx));
+    }
+
+    #[cfg(not(feature = "pomodoro"))]
+    fn sync_pomodoro_config(&mut self, _cx: &mut Context<Self>) {}
+
+    pub(crate) fn open_settings(&mut self, cx: &mut Context<Self>) {
+        settings_window::open_or_focus(
+            &mut self.settings_window,
+            cx,
+            self.db.clone(),
+            self.settings.clone(),
+        );
+    }
+
+    /// 隐藏到托盘：主窗收进托盘，已打开的设置窗口一并关闭。
+    ///
+    /// 不"只是隐藏"设置窗：托盘只有"显示窗口"一个入口，隐藏后没法再把它叫回来，
+    /// 会留下一个永远看不见的窗口。关闭是唯一确定的状态（REQ-0002 AC-7）。
+    pub(crate) fn hide_to_tray(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(handle) = self.settings_window.take() {
+            let _ = handle.update(cx, |_, w, _| w.remove_window());
+        }
+        platform::hide_window(window);
+    }
+
+    /// 标题栏番茄钟入口的文案（Idle 时是 🍅，计时中是倒计时）。
+    #[cfg(feature = "pomodoro")]
+    pub(crate) fn pomodoro_entry(&self, cx: &App) -> (String, bool) {
+        self.pomodoro.read(cx).titlebar_label()
+    }
+
+    /// 点标题栏番茄钟图标：展开 / 收起浮层。
+    #[cfg(feature = "pomodoro")]
+    pub(crate) fn toggle_pomodoro(&mut self, cx: &mut Context<Self>) {
+        self.pomodoro
+            .update(cx, |panel, cx| panel.toggle_expanded(cx));
     }
 
     /// 从数据库重新加载 vault / 任务 / 专注统计。
@@ -116,9 +196,10 @@ impl RootView {
                 self.filter_vault = None;
             }
         }
+        self.all_tags = repo::list_tags(&conn).unwrap_or_default();
         self.vault_counts = repo::active_counts_by_vault(&conn).unwrap_or_default();
         self.total_active = repo::total_active_count(&conn).unwrap_or(0);
-        let status = if self.show_completed {
+        let status = if self.settings.read(cx).get().show_completed {
             None
         } else {
             Some(TaskStatus::Active)
@@ -128,7 +209,7 @@ impl RootView {
             &TaskFilter {
                 vault_id: self.filter_vault.clone(),
                 status,
-                tag_ids: Vec::new(),
+                tag_ids: self.filter_tags.clone(),
             },
         )
         .unwrap_or_default();
@@ -180,6 +261,7 @@ impl RootView {
 
     pub(crate) fn close_overlay(&mut self, cx: &mut Context<Self>) {
         self.overlay = None;
+        self.editor_tag_sub = None;
         cx.notify();
     }
 
@@ -199,15 +281,11 @@ impl RootView {
                 .ok()
                 .and_then(|conn| repo::get_task(&conn, id).ok())
         });
-        let (title_v, note_v, tags_v, due_v, priority, vault_id) = match &existing {
+        let (title_v, note_v, selected_tags, due_v, priority, vault_id) = match &existing {
             Some(t) => (
                 t.title.clone(),
                 t.note.clone().unwrap_or_default(),
-                t.tags
-                    .iter()
-                    .map(|g| g.name.clone())
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                t.tags.iter().map(|g| g.name.clone()).collect::<Vec<_>>(),
                 t.due_at.map(format_date).unwrap_or_default(),
                 t.priority,
                 t.vault_id.clone(),
@@ -215,7 +293,7 @@ impl RootView {
             None => (
                 String::new(),
                 String::new(),
-                String::new(),
+                Vec::new(),
                 String::new(),
                 Priority::None,
                 self.filter_vault
@@ -228,17 +306,27 @@ impl RootView {
         title.update(cx, |s, cx| s.set_value(title_v, window, cx));
         let note = cx.new(|cx| InputState::new(window, cx).placeholder("备注（可选）"));
         note.update(cx, |s, cx| s.set_value(note_v, window, cx));
-        let tags = cx.new(|cx| InputState::new(window, cx).placeholder("标签，用逗号分隔（可选）"));
-        tags.update(cx, |s, cx| s.set_value(tags_v, window, cx));
+        let tag_input = cx.new(|cx| InputState::new(window, cx).placeholder("新建标签，回车添加"));
         let due =
             cx.new(|cx| InputState::new(window, cx).placeholder("截止日期 YYYY-MM-DD（可选）"));
         due.update(cx, |s, cx| s.set_value(due_v, window, cx));
+
+        // 标签输入框的回车只在编辑器打开期间有效，订阅随覆盖层一起释放
+        self.editor_tag_sub =
+            Some(
+                cx.subscribe_in(&tag_input, window, |this, _input, event, window, cx| {
+                    if matches!(event, InputEvent::PressEnter { .. }) {
+                        this.add_editor_tag(window, cx);
+                    }
+                }),
+            );
 
         self.overlay = Some(Overlay::TaskEditor {
             task_id,
             title,
             note,
-            tags,
+            tag_input,
+            selected_tags,
             due,
             priority,
             vault_id,
@@ -304,17 +392,18 @@ impl RootView {
             task_id,
             title,
             note,
-            tags,
+            selected_tags,
             due,
             priority,
             vault_id,
+            ..
         }) = &self.overlay
         else {
             return;
         };
         let title_text = title.read(cx).value().to_string().trim().to_string();
         let note_text = note.read(cx).value().to_string().trim().to_string();
-        let tags_text = tags.read(cx).value().to_string();
+        let tag_names: Vec<String> = selected_tags.clone();
         let due_text = due.read(cx).value().to_string();
         let priority = *priority;
         let vault_id = vault_id.clone();
@@ -331,12 +420,6 @@ impl RootView {
                 return;
             }
         };
-        let tag_names: Vec<String> = tags_text
-            .split([',', '，'])
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-
         let Ok(conn) = self.db.connect() else { return };
         let result = match task_id {
             Some(id) => repo::update_task(
@@ -376,6 +459,7 @@ impl RootView {
         match result {
             Ok(()) => {
                 self.overlay = None;
+                self.editor_tag_sub = None;
                 self.reload(cx);
             }
             Err(e) => self.show_toast(format!("保存失败: {e}"), ToastKind::Error, cx),
@@ -498,12 +582,69 @@ impl RootView {
     }
 
     // ------------------------------------------------------------------
+    // 标签
+    // ------------------------------------------------------------------
+
+    /// 切换编辑器中某个标签的选中态（点已选 chip 取消，点可选 chip 加入）。
+    pub(crate) fn toggle_editor_tag(&mut self, name: String, cx: &mut Context<Self>) {
+        if let Some(Overlay::TaskEditor { selected_tags, .. }) = &mut self.overlay {
+            match selected_tags.iter().position(|n| n == &name) {
+                Some(pos) => {
+                    selected_tags.remove(pos);
+                }
+                None => selected_tags.push(name),
+            }
+        }
+        cx.notify();
+    }
+
+    /// 把标签输入框里的名字加进已选（同名不重复），并清空输入框。
+    pub(crate) fn add_editor_tag(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let (input, name) = {
+            let Some(Overlay::TaskEditor { tag_input, .. }) = &self.overlay else {
+                return;
+            };
+            (
+                tag_input.clone(),
+                tag_input.read(cx).value().trim().to_string(),
+            )
+        };
+        if name.is_empty() {
+            return;
+        }
+        if let Some(Overlay::TaskEditor { selected_tags, .. }) = &mut self.overlay {
+            if !selected_tags.iter().any(|n| n == &name) {
+                selected_tags.push(name);
+            }
+        }
+        input.update(cx, |state, cx| state.set_value("", window, cx));
+        cx.notify();
+    }
+
+    /// 点任务行上的标签 chip：按该标签筛选（再点一次取消）。
+    pub(crate) fn toggle_filter_tag(&mut self, tag_id: String, cx: &mut Context<Self>) {
+        match self.filter_tags.iter().position(|t| t == &tag_id) {
+            Some(pos) => {
+                self.filter_tags.remove(pos);
+            }
+            None => self.filter_tags.push(tag_id),
+        }
+        self.reload(cx);
+    }
+
+    pub(crate) fn clear_filter_tags(&mut self, cx: &mut Context<Self>) {
+        self.filter_tags.clear();
+        self.reload(cx);
+    }
+
+    // ------------------------------------------------------------------
     // 主区域
     // ------------------------------------------------------------------
 
     fn render_main(&mut self, cx: &mut Context<Self>) -> Div {
         let total = self.tasks.len();
-        let toggle_label = if self.show_completed {
+        let show_completed = self.settings.read(cx).get().show_completed;
+        let toggle_label = if show_completed {
             "隐藏已完成"
         } else {
             "显示已完成"
@@ -544,8 +685,9 @@ impl RootView {
                             .text_color(tx::rgba(tx::ACCENT))
                             .hover(|s| s.text_color(tx::rgba(tx::ACCENT_HOVER)))
                             .on_click(cx.listener(|this, _, _, cx| {
-                                this.show_completed = !this.show_completed;
-                                this.reload(cx);
+                                this.settings.update(cx, |store, cx| {
+                                    store.edit(cx, |s| s.show_completed = !s.show_completed)
+                                });
                             }))
                             .child(toggle_label),
                     )
@@ -560,7 +702,68 @@ impl RootView {
                             .child("导出 JSON"),
                     ),
             )
+            .child(self.render_filter_bar(cx))
             .child(task_list::render_task_list(self, cx))
+    }
+
+    /// 标签筛选条：仅在选中标签时出现，点 chip 取消该标签，点「清除」全清。
+    fn render_filter_bar(&self, cx: &mut Context<Self>) -> Div {
+        if self.filter_tags.is_empty() {
+            return div();
+        }
+        let mut row = div()
+            .flex()
+            .flex_row()
+            .items_center()
+            .flex_wrap()
+            .gap_1()
+            .px_3()
+            .pb_1();
+        row = row.child(
+            div()
+                .text_xs()
+                .flex_shrink_0()
+                .text_color(tx::rgba(tx::TEXT_FAINT))
+                .child("按标签筛选"),
+        );
+        for id in &self.filter_tags {
+            let found = self.all_tags.iter().find(|t| &t.id == id);
+            let name = found.map(|t| t.name.clone()).unwrap_or_else(|| id.clone());
+            let hex = found.map(|t| t.color_hex()).unwrap_or(tx::TEXT_MUTED);
+            let (bg, fg, border) = tx::tag_chip_colors(hex);
+            let tid = id.clone();
+            row = row.child(
+                div()
+                    .id(SharedString::from(format!("filter-{id}")))
+                    .flex_shrink_0()
+                    .cursor_pointer()
+                    .px_2()
+                    .py_1()
+                    .rounded_full()
+                    .bg(bg)
+                    .border_1()
+                    .border_color(border)
+                    .text_xs()
+                    .text_color(fg)
+                    .on_click(
+                        cx.listener(move |this, _, _, cx| this.toggle_filter_tag(tid.clone(), cx)),
+                    )
+                    .child(format!("{name} ✕")),
+            );
+        }
+        row.child(
+            div()
+                .id("clear-tag-filter")
+                .flex_shrink_0()
+                .cursor_pointer()
+                .px_2()
+                .py_1()
+                .text_xs()
+                .text_color(tx::rgba(tx::ACCENT))
+                .hover(|s| s.text_color(tx::rgba(tx::ACCENT_HOVER)))
+                .on_click(cx.listener(|this, _, _, cx| this.clear_filter_tags(cx)))
+                .child("清除"),
+        )
     }
 }
 
@@ -602,9 +805,19 @@ impl Render for RootView {
 
         root = root.child(body);
 
+        // 番茄钟浮层：仅在展开时挂上去，绝对定位到右下角，不参与主布局（REQ-0003）。
         #[cfg(feature = "pomodoro")]
         {
-            root = root.child(self.pomodoro.clone());
+            if self.pomodoro.read(cx).is_expanded() {
+                root = root.child(
+                    div()
+                        .absolute()
+                        .right(px(12.0))
+                        .bottom(px(12.0))
+                        .w(px(320.0))
+                        .child(self.pomodoro.clone()),
+                );
+            }
         }
 
         if self.overlay.is_some() {

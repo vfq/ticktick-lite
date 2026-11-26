@@ -1,7 +1,7 @@
 ---
 id: REQ-0001
 title: 标签系统（选择 / 管理 / 筛选 / 导出）
-status: in-progress
+status: implemented
 owner: vfq
 created: 2026-11-26
 updated: 2026-11-26
@@ -92,14 +92,17 @@ pub fn list_tags_with_counts(conn) -> Result<Vec<TagCount>>;
 
 ## 5. 验收标准
 
-- [ ] AC-1 任务编辑器可选多个标签，保存后重新打开正确回显
-- [ ] AC-2 在设置窗口改名后，任务行标签立即显示新名
-- [ ] AC-3 改色后任务行 chip 与设置页色点同步变化
-- [ ] AC-4 删除标签后，任务不再带该标签，且任务本身保留
-- [ ] AC-5 点击任务行标签 chip 过滤生效，顶部出现可关闭的筛选条
-- [ ] AC-6 导出 JSON `format_version == 2`，`tags` 为 `[{name, color}]`，颜色为 `#RRGGBB`
-- [ ] AC-7 新增同名标签时报错「标签「x」已存在」，不产生重复行
-- [ ] AC-8 `cargo test -p ticktick-core` 全绿（含标签 CRUD、筛选去重、迁移幂等）
+> 勾选含义：`[x]` 已有自动化测试或代码级证据（CI / `cargo test -p ticktick-core`）；
+> `[ ]` 依赖 Windows 真机交互，统一在 P5 真机清单里逐条走。
+
+- [x] AC-1 任务编辑器可选多个标签，保存后重新打开正确回显
+- [x] AC-2 在设置窗口改名后，任务行标签立即显示新名
+- [x] AC-3 改色后任务行 chip 与设置页色点同步变化
+- [x] AC-4 删除标签后，任务不再带该标签，且任务本身保留
+- [ ] AC-5 点击任务行标签 chip 过滤生效，顶部出现可关闭的筛选条（交互，待真机）
+- [x] AC-6 导出 JSON `format_version == 2`，`tags` 为 `[{name, color}]`，颜色为 `#RRGGBB`
+- [x] AC-7 新增同名标签时报错「标签「x」已存在」，不产生重复行
+- [x] AC-8 `cargo test -p ticktick-core` 全绿（含标签 CRUD、筛选去重、迁移幂等）
 
 ## 6. 验证
 
@@ -112,3 +115,5 @@ pub fn list_tags_with_counts(conn) -> Result<Vec<TagCount>>;
 |---|---|---|
 | 2026-11-26 | v1 | 初稿，四层全量 |
 | 2026-11-26 | v1.1 | 数据层落地：schema v2（`idx_task_tags_tag_id` + 颜色回填）、`TAG_PALETTE`/`parse_hex_color`/`default_tag_color`/`Tag::color_hex`、标签 CRUD 与 `list_tags_with_counts`、`TaskFilter.tag_ids`（OR 语义）、导出 `format_version: 2`。`update_task_details` 收敛为 `TaskEdit` + `update_task`（顺带清掉 `too_many_arguments` 的 allow）。对应测试 17 项见 `crates/core/tests/core_flow.rs`。 |
+| 2026-11-26 | v1.2 | UI 层落地（P4d）：任务编辑器改为 chip 多选（`overlays::tag_picker` + `TaskEditor.selected_tags`，回车可即建即选）；任务行 chip 用 `tx::tag_chip_colors(hex)` 着色并可点击筛选；顶部新增标签筛选条（可单个移除 / 一键清除）；设置窗口「标签」分区提供新建 / 改名 / 改色板 / 二次确认删除。开关态与 `filter_tags` 均在 `RootView`，DB 变更后 `SettingsStore::notify_changed()` 广播触发主窗 `reload`。 |
+

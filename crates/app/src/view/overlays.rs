@@ -14,7 +14,10 @@ pub enum Overlay {
         task_id: Option<String>,
         title: Entity<InputState>,
         note: Entity<InputState>,
-        tags: Entity<InputState>,
+        /// 新建标签的输入框（回车加入已选）
+        tag_input: Entity<InputState>,
+        /// 已选标签名（覆盖式写回任务）
+        selected_tags: Vec<String>,
         due: Entity<InputState>,
         priority: Priority,
         vault_id: String,
@@ -78,10 +81,10 @@ fn render_task_editor(view: &RootView, cx: &mut Context<RootView>) -> Div {
         task_id,
         title,
         note,
-        tags,
         due,
         priority,
         vault_id,
+        ..
     }) = &view.overlay
     else {
         return div();
@@ -125,7 +128,7 @@ fn render_task_editor(view: &RootView, cx: &mut Context<RootView>) -> Div {
         .child(field_label("备注"))
         .child(Input::new(note).w_full())
         .child(field_label("标签"))
-        .child(Input::new(tags).w_full())
+        .child(tag_picker(view, cx))
         .child(field_label("截止日期"))
         .child(Input::new(due).w_full())
         .child(field_label("优先级"))
@@ -137,6 +140,95 @@ fn render_task_editor(view: &RootView, cx: &mut Context<RootView>) -> Div {
             cx.listener(|this, _, _, cx| this.save_task_editor(cx)),
             "保存",
         ))
+}
+
+/// 标签选择器：已选 chip（点击移除）+ 可选 chip（点击加入）+ 新建输入框。
+///
+/// 用 chip 多选替代原来的「逗号分隔文本框」——用户不必记住标签名，
+/// 也不会因为多打一个逗号造出重复标签。
+fn tag_picker(view: &RootView, cx: &mut Context<RootView>) -> Div {
+    let Some(Overlay::TaskEditor {
+        tag_input,
+        selected_tags,
+        ..
+    }) = &view.overlay
+    else {
+        return div();
+    };
+    let selected = selected_tags.clone();
+    let input = tag_input.clone();
+
+    let mut selected_row = div().flex().flex_row().flex_wrap().gap_1().min_h(px(22.0));
+    if selected.is_empty() {
+        selected_row = selected_row.child(
+            div()
+                .text_xs()
+                .text_color(tx::rgba(tx::TEXT_FAINT))
+                .child("未选择标签"),
+        );
+    }
+    for name in &selected {
+        let hex = view
+            .all_tags
+            .iter()
+            .find(|t| &t.name == name)
+            .map(|t| t.color_hex())
+            .unwrap_or(tx::TEXT_MUTED);
+        let (bg, fg, border) = tx::tag_chip_colors(hex);
+        let owned = name.clone();
+        selected_row = selected_row.child(
+            div()
+                .id(SharedString::from(format!("sel-tag-{name}")))
+                .cursor_pointer()
+                .px_2()
+                .py_1()
+                .rounded_full()
+                .bg(bg)
+                .border_1()
+                .border_color(border)
+                .text_xs()
+                .text_color(fg)
+                .on_click(
+                    cx.listener(move |this, _, _, cx| this.toggle_editor_tag(owned.clone(), cx)),
+                )
+                .child(format!("{name} ✕")),
+        );
+    }
+
+    let mut avail_row = div().flex().flex_row().flex_wrap().gap_1();
+    for tag in &view.all_tags {
+        if selected.iter().any(|n| n == &tag.name) {
+            continue;
+        }
+        let (bg, fg, border) = tx::tag_chip_colors(tag.color_hex());
+        let owned = tag.name.clone();
+        avail_row = avail_row.child(
+            div()
+                .id(SharedString::from(format!("opt-tag-{}", tag.id)))
+                .cursor_pointer()
+                .px_2()
+                .py_1()
+                .rounded_full()
+                .bg(tx::rgba(tx::BG_CHIP))
+                .border_1()
+                .border_color(tx::rgba(tx::BORDER))
+                .text_xs()
+                .text_color(tx::rgba(tx::TEXT_MUTED))
+                .hover(move |s| s.bg(bg).text_color(fg).border_color(border))
+                .on_click(
+                    cx.listener(move |this, _, _, cx| this.toggle_editor_tag(owned.clone(), cx)),
+                )
+                .child(tag.name.clone()),
+        );
+    }
+
+    div()
+        .flex()
+        .flex_col()
+        .gap_2()
+        .child(selected_row)
+        .child(avail_row)
+        .child(Input::new(&input).w_full())
 }
 
 // ---------------------------------------------------------------------------

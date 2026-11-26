@@ -5,6 +5,13 @@
 
 use crate::model::Task;
 
+/// 应用的 AppUserModelID。
+///
+/// 非 MSIX 打包的应用必须把它写进
+/// `HKCU\SOFTWARE\Classes\AppUserModelId\<AUMID>`，否则 Windows 通知会显示成
+/// 「Windows PowerShell」，或直接发送失败。app 壳负责注册，插件负责发送时带上。
+pub const AUMID: &str = "vfq.TickTickLite.Desktop";
+
 pub trait Plugin: Send + Sync {
     /// 插件唯一标识，如 "pomodoro"
     fn id(&self) -> &'static str;

@@ -55,12 +55,17 @@ pub fn render_task_list(view: &RootView, cx: &mut Context<RootView>) -> Stateful
             current_group = Some(group);
         }
         let focus = view.focus_totals.get(&task.id).copied().unwrap_or(0);
-        list = list.child(render_task_row(task, focus, cx));
+        list = list.child(render_task_row(task, focus, &view.filter_tags, cx));
     }
     list
 }
 
-fn render_task_row(task: &CoreTask, focus_secs: i64, cx: &mut Context<RootView>) -> Stateful<Div> {
+fn render_task_row(
+    task: &CoreTask,
+    focus_secs: i64,
+    filter_tags: &[String],
+    cx: &mut Context<RootView>,
+) -> Stateful<Div> {
     let done = task.is_completed();
 
     // ---- 勾选框 ----
@@ -96,9 +101,11 @@ fn render_task_row(task: &CoreTask, focus_secs: i64, cx: &mut Context<RootView>)
     let title_color = if done { tx::TEXT_FAINT } else { tx::TEXT };
     let mut title_el = div()
         .flex_1()
+        .min_w_0()
         .text_sm()
         .text_color(tx::rgba(title_color))
-        .overflow_hidden()
+        // 单行 + 省略号：长标题不再把行内操作挤出可视区
+        .truncate()
         .child(task.title.clone());
     if done {
         title_el = title_el.line_through();
@@ -116,7 +123,12 @@ fn render_task_row(task: &CoreTask, focus_secs: i64, cx: &mut Context<RootView>)
     let edit_id = task.id.clone();
     let del_id = task.id.clone();
     let del_title = task.title.clone();
-    let mut actions = div().flex().flex_row().items_center().gap_1();
+    let mut actions = div()
+        .flex_shrink_0()
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap_1();
 
     #[cfg(feature = "pomodoro")]
     if !done {
@@ -155,13 +167,24 @@ fn render_task_row(task: &CoreTask, focus_secs: i64, cx: &mut Context<RootView>)
     let mut has_meta = false;
     for tag in &task.tags {
         has_meta = true;
+        // chip 三色由标签色派生（ADR-0004），点一下即按该标签筛选
+        let (bg, fg, border) = tx::tag_chip_colors(tag.color_hex());
+        let active = filter_tags.iter().any(|id| id == &tag.id);
+        let tag_id = tag.id.clone();
         meta = meta.child(
             div()
+                .id(SharedString::from(format!("tag-{}-{}", task.id, tag.id)))
+                .cursor_pointer()
                 .px_1()
                 .rounded_sm()
-                .bg(tx::tag_chip_color())
+                .bg(bg)
+                .border_1()
+                .border_color(if active { fg } else { border })
                 .text_xs()
-                .text_color(tx::rgba(tx::TEXT_MUTED))
+                .text_color(fg)
+                .on_click(
+                    cx.listener(move |this, _, _, cx| this.toggle_filter_tag(tag_id.clone(), cx)),
+                )
                 .child(tag.name.clone()),
         );
     }

@@ -7,9 +7,9 @@
 
 | ID | 类型 | 标题 | 状态 | 关联代码 |
 |---|---|---|---|---|
-| [REQ-0001](requirements/REQ-0001-tag-system.md) | 需求 | 标签系统（选择 / 管理 / 筛选 / 导出） | in-progress | `core/{model,repo,db,export}.rs`、`app/view/{overlays,task_list,settings_window}.rs` |
-| [REQ-0002](requirements/REQ-0002-settings-window.md) | 需求 | 独立设置窗口 | in-progress | `app/view/settings_window.rs`、`app/settings_store.rs`、`core/settings.rs` |
-| [REQ-0003](requirements/REQ-0003-pomodoro-floating.md) | 需求 | 番茄钟浮层化 + 时长可配 + 系统通知 | in-progress | `plugins/pomodoro/panel.rs`、`app/view/{mod,titlebar}.rs` |
+| [REQ-0001](requirements/REQ-0001-tag-system.md) | 需求 | 标签系统（选择 / 管理 / 筛选 / 导出） | implemented | `core/{model,repo,db,export}.rs`、`app/view/{overlays,task_list,settings_window}.rs` |
+| [REQ-0002](requirements/REQ-0002-settings-window.md) | 需求 | 独立设置窗口 | implemented | `app/view/settings_window.rs`、`app/settings_store.rs`、`core/settings.rs` |
+| [REQ-0003](requirements/REQ-0003-pomodoro-floating.md) | 需求 | 番茄钟浮层化 + 时长可配 + 系统通知 | implemented | `plugins/pomodoro/panel.rs`、`app/view/{mod,titlebar}.rs` |
 | [BUG-0001](bugs/BUG-0001-window-not-draggable.md) | 缺陷 | 主窗自绘标题栏无法拖动 | fixed | `app/view/titlebar.rs` |
 | [BUG-0002](bugs/BUG-0002-vault-chip-clipped.md) | 缺陷 | 清单 chip 被压窄、溢出被遮挡 | fixed | `app/view/sidebar.rs` |
 | [ADR-0001](adr/ADR-0001-rust-2024.md) | 决策 | 迁移到 Rust 2024 edition | accepted | `Cargo.toml`、`rust-toolchain.toml` |

@@ -5,6 +5,7 @@
 //! 已完成任务按 vault 导出 JSON、番茄钟插件、系统托盘。
 
 mod platform;
+mod settings_store;
 mod state;
 mod theme_ext;
 mod tray;
@@ -16,6 +17,9 @@ use ticktick_core::Database;
 
 fn main() {
     env_logger::init();
+
+    // 通知要显示成「滴答 Lite」而不是 PowerShell，必须先把 AUMID 写进注册表
+    platform::register_aumid();
 
     let db = Database::new(state::db_path()).expect("无法打开数据库");
     state::ensure_seeded(&db).expect("初始化种子数据失败");
@@ -36,10 +40,13 @@ fn main() {
             ..Default::default()
         };
 
+        // 设置是跨窗口的单一真相：主窗与设置窗共享同一个实体
+        let settings = cx.new(|cx| settings_store::SettingsStore::new(db.clone(), cx));
         let db2 = db.clone();
+        let settings2 = settings.clone();
         // open_window 返回 (窗口句柄, 根视图实体)
         let (window_handle, _root) = gpui_kit::open_window(options, cx, move |window, cx| {
-            cx.new(|cx| view::RootView::new(window, cx, db2))
+            cx.new(|cx| view::RootView::new(window, cx, db2, settings2))
         })
         .expect("无法创建主窗口");
 

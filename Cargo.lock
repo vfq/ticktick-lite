@@ -7000,6 +7000,7 @@ name = "ticktick-plugin-pomodoro"
 version = "0.1.0"
 dependencies = [
  "gpui-kit",
+ "log",
  "notify-rust",
  "ticktick-core",
 ]
