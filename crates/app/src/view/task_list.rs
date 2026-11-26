@@ -2,11 +2,11 @@
 
 use gpui_kit::prelude::*;
 use gpui_kit::*;
-use ticktick_core::{repo, Task as CoreTask, TaskStatus};
+use ticktick_core::{Task as CoreTask, TaskStatus, repo};
 
 use crate::theme_ext as tx;
 
-use super::{format_due_short, is_overdue, RootView};
+use super::{RootView, format_due_short, is_overdue};
 
 pub fn render_task_list(view: &RootView, cx: &mut Context<RootView>) -> Stateful<Div> {
     if view.tasks.is_empty() {

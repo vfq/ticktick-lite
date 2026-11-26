@@ -5,7 +5,7 @@ use std::time::Duration;
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 use ticktick_core::model::{new_id, now_ts};
-use ticktick_core::{repo, Database, PomodoroKind, PomodoroSession};
+use ticktick_core::{Database, PomodoroKind, PomodoroSession, repo};
 
 const DEFAULT_FOCUS_MINS: i64 = 25;
 const DEFAULT_SHORT_BREAK_MINS: i64 = 5;
@@ -185,10 +185,12 @@ impl PomodoroPanel {
         if self._tick.is_some() {
             return;
         }
-        self._tick = Some(cx.spawn(async move |this, cx| loop {
-            cx.background_executor().timer(Duration::from_secs(1)).await;
-            if this.update(cx, |this, cx| this.tick(cx)).is_err() {
-                break;
+        self._tick = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(Duration::from_secs(1)).await;
+                if this.update(cx, |this, cx| this.tick(cx)).is_err() {
+                    break;
+                }
             }
         }));
     }

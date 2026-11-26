@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use ticktick_core::{repo, Database, Result};
+use ticktick_core::{Database, Result, repo};
 
 /// 数据库文件位置：`%APPDATA%/ticktick-lite/TickTickLite/data/data.db`
 pub fn db_path() -> PathBuf {

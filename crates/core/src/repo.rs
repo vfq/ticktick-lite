@@ -2,11 +2,11 @@
 
 use std::collections::HashMap;
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 
 use crate::error::{Error, Result};
 use crate::model::{
-    new_id, now_ts, PomodoroKind, PomodoroSession, Priority, Tag, Task, TaskStatus, Vault,
+    PomodoroKind, PomodoroSession, Priority, Tag, Task, TaskStatus, Vault, new_id, now_ts,
 };
 
 // ---------------------------------------------------------------------------
@@ -131,8 +131,7 @@ fn task_from_row(r: &rusqlite::Row) -> rusqlite::Result<Task> {
     })
 }
 
-const TASK_COLS: &str =
-    "id, vault_id, title, note, priority, status, due_at, completed_at, sort_order, created_at, updated_at";
+const TASK_COLS: &str = "id, vault_id, title, note, priority, status, due_at, completed_at, sort_order, created_at, updated_at";
 
 pub struct NewTask {
     pub vault_id: String,

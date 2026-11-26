@@ -1,9 +1,9 @@
 //! 验收测试：建 vault → 建任务 → 打标签 → 完成 → 番茄聚合 → JSON 导出。
 
-use ticktick_core::export;
-use ticktick_core::model::{now_ts, PomodoroKind, PomodoroSession, Priority, TaskStatus};
-use ticktick_core::repo::{self, NewTask, TaskFilter};
 use ticktick_core::Database;
+use ticktick_core::export;
+use ticktick_core::model::{PomodoroKind, PomodoroSession, Priority, TaskStatus, now_ts};
+use ticktick_core::repo::{self, NewTask, TaskFilter};
 
 fn temp_db() -> (tempfile::TempDir, Database) {
     let dir = tempfile::tempdir().unwrap();

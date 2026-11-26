@@ -25,7 +25,8 @@ jobs:
   fmt:
     name: fmt
     runs-on: [self-hosted, qc]
-    timeout-minutes: 10
+    # checkout 自管重试最坏约 7 分钟（6 次 fetch + 15s 递增退避），预算须大于它
+    timeout-minutes: 15
     # 公开仓库 + self-hosted：拒绝 fork PR，否则任何人都能在 runner 主机上执行任意代码
     if: >-
       github.event_name != 'pull_request' ||
@@ -162,7 +163,8 @@ jobs:
   docs:
     name: docs front matter
     runs-on: [self-hosted, qc]
-    timeout-minutes: 5
+    # 同样要给 checkout 重试留出约 7 分钟；run 45844244973 的此 job 就是被 5 分钟预算掐断的
+    timeout-minutes: 12
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository

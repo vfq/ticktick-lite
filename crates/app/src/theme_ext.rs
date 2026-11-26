@@ -5,7 +5,7 @@
 //! - 圆角 控件 6px、卡片 12px、chip 全圆角
 //! - 过渡 150ms ease-out，优先级使用「色条 + 分组标题」双编码
 
-use gpui_kit::{rgb, Rgba};
+use gpui_kit::{Rgba, rgb};
 use ticktick_core::Priority;
 
 // 中性

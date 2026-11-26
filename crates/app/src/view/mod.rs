@@ -11,7 +11,7 @@ use std::time::Duration;
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
-use ticktick_core::model::{now_ts, Priority, TaskStatus};
+use ticktick_core::model::{Priority, TaskStatus, now_ts};
 use ticktick_core::repo::{self, NewTask, TaskFilter};
 use ticktick_core::{Database, Task as CoreTask, Vault};
 
