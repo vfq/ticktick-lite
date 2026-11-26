@@ -1,7 +1,7 @@
 ---
 id: BUG-0001
 title: 主窗自绘标题栏无法拖动窗口
-status: open
+status: fixed
 severity: major
 owner: vfq
 created: 2026-11-26
@@ -89,3 +89,4 @@ div()
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-11-26 | v1 | 记录根因（`start_window_move` 在 Windows 为空实现）与修复方案 |
+| 2026-11-26 | v1.1 | 已实施：`titlebar.rs` 拖动区改为 `window_control_area(WindowControlArea::Drag)`，删除 `on_mouse_down + start_window_move`。待 Windows 真机回归（§5 清单）。 |

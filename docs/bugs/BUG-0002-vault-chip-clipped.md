@@ -1,7 +1,7 @@
 ---
 id: BUG-0002
 title: 清单 chip 行显示不全、文字溢出被任务区遮挡
-status: open
+status: fixed
 severity: major
 owner: vfq
 created: 2026-11-26
@@ -58,32 +58,30 @@ related: [REQ-0001]
 结论：不是容器高度不够导致裁切（纵向压根没裁），也不是滚动机制没生效
 （`id="vault-bar"` 存在，滚动状态可正常建立）。
 
-## 4. 修复
+## 4. 修复（已实施 2026-11-26）
 
 ```rust
-// 1) 容器：补纵向裁剪，外层禁止被压扁
-let mut chips = div()
-    .id("vault-bar")
-    // …
-    .overflow_x_scroll()
-    .overflow_y_hidden();        // 根因 C
-
-// 2) 每个 chip：禁止压缩
+// 1) 每个 chip：禁止压缩（根因 A）
 div().id(id)
-    .flex_shrink_0()             // 根因 A（关键一行）
-    .h(px(24.0))
+    .flex_shrink_0()
     // …
-
-// 3) chip 文本：单行 + 上限 + 省略号
-div().text_xs()
-    .max_w(px(140.0))
-    .truncate()                  // 根因 B
+// 2) chip 文本：单行 + 省略号（根因 B）
+div().text_xs().truncate()
+// 3) 计数与右侧「＋ / ✎ / ✕」同样 flex_shrink_0，不被 chip 行挤掉
+// 4) 外层 bar 补 flex_shrink_0，纵向空间紧张时整行不被压扁
 ```
 
-`truncate()` 等价于 `overflow_hidden() + whitespace_nowrap() + text_ellipsis()`
-（`gpui-pre-0.3.10/src/styled.rs:139-141`）；`flex_shrink_0()` 见同文件 `:250-255`。
+**与初版方案的偏差（已核实 API 不存在）**
 
-外层 bar 容器同时补 `.flex_shrink_0()`，避免 `body` 纵向空间紧张时整行被压扁。
+初版写的 `.overflow_y_hidden()` 与 `.max_w(px(140.0))` 在 `gpui-pre-0.3.10` 里
+**都没有对应方法**（`Styled` 只有 `overflow_hidden` / `overflow_x_scroll` /
+`overflow_y_scroll` 等整体式方法，宽度约束只有 `w` / `min_w` 系列，无 `max_w`）。
+因此改为从源头消除纵向溢出，而不是事后裁剪：
+
+- `truncate()` 本身带 `whitespace_nowrap()`，文字不会再折行，**纵向溢出不可能发生**，
+  也就不需要 `overflow_y_hidden`；
+- 超长清单名不加宽度上限，chip 按内容撑宽，由容器的 `overflow_x_scroll()` 横向滚动兜住——
+  这比"截断成 140px"更符合"要看到全名"的诉求，且不依赖不存在的 API。
 
 ## 5. 回归测试
 
@@ -98,3 +96,4 @@ div().text_xs()
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-11-26 | v1 | 记录三重根因（flex 压缩 / 文本换行 / x-only 掩码不裁 y） |
+| 2026-11-26 | v1.1 | 已实施：chip 与计数/操作区补 `flex_shrink_0`，文本改 `truncate()`，外层 bar 补 `flex_shrink_0`。方案里的 `overflow_y_hidden` / `max_w` 在 gpui-pre 0.3.10 不存在，改为从源头消除纵向溢出，见 §4 偏差说明。待真机回归。 |

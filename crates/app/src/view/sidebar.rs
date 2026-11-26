@@ -55,6 +55,8 @@ pub fn render_vault_bar(view: &RootView, cx: &mut Context<RootView>) -> Div {
     let add = div()
         .id("vault-new")
         .cursor_pointer()
+        // 右侧的「＋」与编辑/删除不能被 chip 行挤掉
+        .flex_shrink_0()
         .px_2()
         .py_1()
         .rounded_full()
@@ -78,6 +80,7 @@ pub fn render_vault_bar(view: &RootView, cx: &mut Context<RootView>) -> Div {
                 .map(|v| v.name.clone())
                 .unwrap_or_default();
             div()
+                .flex_shrink_0()
                 .flex()
                 .flex_row()
                 .items_center()
@@ -114,6 +117,7 @@ pub fn render_vault_bar(view: &RootView, cx: &mut Context<RootView>) -> Div {
 
     div()
         .w_full()
+        .flex_shrink_0()
         .flex()
         .flex_row()
         .items_center()
@@ -143,6 +147,9 @@ fn vault_chip(
     let mut chip = div()
         .id(id)
         .cursor_pointer()
+        // gpui 的 flex_shrink 默认是 1.0：不加这句，横向空间不足时 chip 会被压窄，
+        // 里面的文字随之换行溢出 36px 行高，被后绘制的任务区盖住（BUG-0002）。
+        .flex_shrink_0()
         .px_2()
         .py_1()
         .rounded_full()
@@ -156,12 +163,14 @@ fn vault_chip(
             div()
                 .text_xs()
                 .text_color(tx::rgba(fg))
-                .overflow_hidden()
+                // truncate = overflow_hidden + whitespace_nowrap + text_ellipsis
+                .truncate()
                 .child(label.to_string()),
         );
     if let Some(count) = count {
         chip = chip.child(
             div()
+                .flex_shrink_0()
                 .text_xs()
                 .text_color(tx::rgba(if selected { tx::ACCENT } else { tx::TEXT_FAINT }))
                 .child(format!(" {count}")),
