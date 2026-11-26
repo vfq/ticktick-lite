@@ -86,10 +86,11 @@ impl Database {
     /// 打开（必要时创建并初始化）指定路径的数据库。
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)?;
-            }
+        // edition 2024 的 let-chain：父目录存在且不是空字符串（纯文件名）才创建
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)?;
         }
         let db = Self { path };
         let conn = db.connect()?;

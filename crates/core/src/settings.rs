@@ -84,23 +84,13 @@ impl PomodoroConfig {
 // 应用设置
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppSettings {
     /// 主窗是否始终置顶
     pub topmost: bool,
     /// 任务列表是否显示已完成项
     pub show_completed: bool,
     pub pomodoro: PomodoroConfig,
-}
-
-impl Default for AppSettings {
-    fn default() -> Self {
-        Self {
-            topmost: false,
-            show_completed: false,
-            pomodoro: PomodoroConfig::default(),
-        }
-    }
 }
 
 impl AppSettings {
