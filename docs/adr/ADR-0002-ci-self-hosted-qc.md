@@ -78,3 +78,19 @@ Windows 报「拒绝访问 (os error 5)」，导致构建莫名失败。此坑�
 4. runner 跑在专用低权用户下，不放任何 secret / deploy key。
 5. `CARGO_TARGET_DIR` 按 job 分目录，避免同机并发锁。
 6. 仓库设置开启「Require approval for all outside collaborators」。
+
+## 验收记录（2026-11-26）
+
+| 项 | 结果 |
+|---|---|
+| runner | `qc-ticktick`（`/opt/actions-runner-ticktick`，服务 `actions.runner.vfq-ticktick-lite.qc-ticktick.service`），标签 `self-hosted, Linux, X64, qc` |
+| 工具链 | 主机预装 `1.100.0`（含 rustfmt/clippy），与 `rust-toolchain.toml` 一致，CI 无需现下载 |
+| 首次全绿 | run `45834088910`，`fmt` / `clippy (core)` / `test (core)` / `docs front matter` 四 job 全部 success |
+| 安全加固 | `default_workflow_permissions=read`、`can_approve_pull_request_reviews=false`、`fork-pr-contributor-approval=all_external_contributors` 已通过 API 落实 |
+| 远端协议 | 本机到 `github.com:22` 被网络阻断，remote 使用 **HTTPS**（`gh auth setup-git` 提供凭据），不要再改回 SSH |
+
+首轮 clippy 共暴露 4 处告警（3 处预判 + 1 处 1.100 新增 `cloned_ref_to_slice_refs`），
+修复记录见 [ci-and-runner 指南](../guides/ci-and-runner.md)。
+
+> 注：`windows-check.yml` 仍指向 `windows-latest`。该账户托管 runner 是否可用尚未验证，
+> 若不可用则按本文第 2 节的退化路径处理（阶段验收本机 `cargo check`）。

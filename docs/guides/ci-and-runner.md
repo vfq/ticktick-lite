@@ -117,6 +117,14 @@ gh api repos/<owner>/<repo>/actions/runners --jq '.runners[] | {name, status, la
 2. 不使用 `pull_request_target`。
 3. `permissions: contents: read` + `checkout` 的 `persist-credentials: false`。
 4. 仓库设置 → Actions → 勾选「Require approval for all outside collaborators」。
+   已通过 API 落实，复现命令：
+
+   ```bash
+   gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
+     -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
+   gh api -X PUT repos/<owner>/<repo>/actions/permissions/fork-pr-contributor-approval \
+     -f approval_policy=all_external_contributors
+   ```
 5. runner 主机不放 deploy key / PAT，不挂载敏感目录。
 
 ## clippy 严格模式（`-D warnings`）
