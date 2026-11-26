@@ -6,7 +6,8 @@ use rusqlite::{Connection, params};
 
 use crate::error::{Error, Result};
 use crate::model::{
-    PomodoroKind, PomodoroSession, Priority, Tag, Task, TaskStatus, Vault, new_id, now_ts,
+    PomodoroKind, PomodoroSession, Priority, Tag, Task, TaskStatus, Vault, default_tag_color,
+    new_id, now_ts, tag_color_or_default,
 };
 
 // ---------------------------------------------------------------------------
@@ -110,6 +111,11 @@ pub struct TaskFilter {
     pub vault_id: Option<String>,
     /// None = 全部状态；Some(Active) = 仅进行中；Some(Completed) = 仅已完成
     pub status: Option<TaskStatus>,
+    /// 标签筛选，语义为 **OR（并集）**：命中任一标签即入选。
+    ///
+    /// 空 Vec 表示不按标签过滤。用 `EXISTS` 而非 JOIN，天然避免一个任务命中
+    /// 多个选中标签时重复出现，也就不需要 `DISTINCT`。
+    pub tag_ids: Vec<String>,
 }
 
 fn task_from_row(r: &rusqlite::Row) -> rusqlite::Result<Task> {
@@ -209,6 +215,21 @@ pub fn list_tasks(conn: &Connection, filter: &TaskFilter) -> Result<Vec<Task>> {
         sql.push_str(" AND status = ?");
         values.push(Box::new(status.as_str().to_string()));
     }
+    if !filter.tag_ids.is_empty() {
+        let marks = filter
+            .tag_ids
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
+        sql.push_str(&format!(
+            " AND EXISTS (SELECT 1 FROM task_tags tt \
+             WHERE tt.task_id = tasks.id AND tt.tag_id IN ({marks}))"
+        ));
+        for id in &filter.tag_ids {
+            values.push(Box::new(id.clone()));
+        }
+    }
     sql.push_str(
         " ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, priority DESC, created_at ASC",
     );
@@ -228,33 +249,34 @@ pub fn list_tasks(conn: &Connection, filter: &TaskFilter) -> Result<Vec<Task>> {
     Ok(tasks)
 }
 
-// TODO(P2)：参数已达 8 个，P2 改造标签时收敛为 `TaskEdit` 结构体传参，
-// 届时去掉这条 allow。当前保留 allow 是为了不在 P0 阶段牵动 app 侧调用点
-// （app 无编译验证通道，见 ADR-0002）。
-#[allow(clippy::too_many_arguments)]
-pub fn update_task_details(
-    conn: &Connection,
-    id: &str,
-    title: &str,
-    note: Option<&str>,
-    priority: Priority,
-    due_at: Option<i64>,
-    vault_id: &str,
-    tag_names: &[String],
-) -> Result<Task> {
+/// 任务编辑的入参集合。
+///
+/// 参数超过 5 个后逐位传参极易错位（`due_at` 与 `vault_id` 类型不同还好，
+/// 将来加同类型字段就难查了），统一收进结构体，调用侧用字段名表达意图。
+pub struct TaskEdit<'a> {
+    pub title: &'a str,
+    pub note: Option<&'a str>,
+    pub priority: Priority,
+    pub due_at: Option<i64>,
+    pub vault_id: &'a str,
+    /// 目标标签名集合，覆盖式写入（空切片 = 清空标签）
+    pub tag_names: &'a [String],
+}
+
+pub fn update_task(conn: &Connection, id: &str, edit: TaskEdit<'_>) -> Result<Task> {
     conn.execute(
         "UPDATE tasks SET title = ?2, note = ?3, priority = ?4, due_at = ?5, vault_id = ?6, updated_at = ?7 WHERE id = ?1",
         params![
             id,
-            title.trim(),
-            note.filter(|n| !n.trim().is_empty()),
-            priority.as_i64(),
-            due_at,
-            vault_id,
+            edit.title.trim(),
+            edit.note.filter(|n| !n.trim().is_empty()),
+            edit.priority.as_i64(),
+            edit.due_at,
+            edit.vault_id,
             now_ts()
         ],
     )?;
-    let ids = ensure_tags(conn, tag_names)?;
+    let ids = ensure_tags(conn, edit.tag_names)?;
     set_task_tags(conn, id, &ids)?;
     get_task(conn, id)
 }
@@ -292,6 +314,114 @@ pub fn list_tags(conn: &Connection) -> Result<Vec<Tag>> {
     Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
 }
 
+/// 标签列表附带任务计数，供设置页展示「哪些标签在用」。
+#[derive(Debug, Clone)]
+pub struct TagCount {
+    pub tag: Tag,
+    /// 挂在该标签下的进行中任务数
+    pub active: i64,
+    /// 挂在该标签下的任务总数（含已完成）
+    pub total: i64,
+}
+
+/// 记录某标签名已存在时，返回带名字的冲突错误（UI 直接展示这句）。
+fn tag_name_taken(name: &str) -> Error {
+    Error::Conflict(format!("标签「{name}」已存在"))
+}
+
+fn ensure_tag_name_free(conn: &Connection, name: &str, except_id: Option<&str>) -> Result<()> {
+    let taken: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM tags WHERE name = ?1 AND id <> COALESCE(?2, '')",
+        params![name, except_id],
+        |r| r.get(0),
+    )?;
+    if taken > 0 {
+        return Err(tag_name_taken(name));
+    }
+    Ok(())
+}
+
+/// 新建标签。颜色缺省时按名称派生，因此新建的标签立刻就有颜色。
+pub fn create_tag(conn: &Connection, name: &str, color: Option<&str>) -> Result<Tag> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(Error::Other("标签名不能为空".into()));
+    }
+    ensure_tag_name_free(conn, name, None)?;
+    let tag = Tag {
+        id: new_id(),
+        name: name.to_string(),
+        color: Some(tag_color_or_default(color, name)),
+    };
+    conn.execute(
+        "INSERT INTO tags(id, name, color) VALUES (?1, ?2, ?3)",
+        params![tag.id, tag.name, tag.color],
+    )?;
+    Ok(tag)
+}
+
+pub fn rename_tag(conn: &Connection, id: &str, name: &str) -> Result<()> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(Error::Other("标签名不能为空".into()));
+    }
+    ensure_tag_name_free(conn, name, Some(id))?;
+    let affected = conn.execute("UPDATE tags SET name = ?2 WHERE id = ?1", params![id, name])?;
+    if affected == 0 {
+        return Err(Error::NotFound(format!("tag {id}")));
+    }
+    Ok(())
+}
+
+/// 设置标签颜色；传 `None` 表示恢复为名称派生色。
+pub fn set_tag_color(conn: &Connection, id: &str, color: Option<&str>) -> Result<()> {
+    let name: String = conn
+        .query_row("SELECT name FROM tags WHERE id = ?1", params![id], |r| {
+            r.get(0)
+        })
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => Error::NotFound(format!("tag {id}")),
+            other => Error::Db(other),
+        })?;
+    conn.execute(
+        "UPDATE tags SET color = ?2 WHERE id = ?1",
+        params![id, tag_color_or_default(color, &name)],
+    )?;
+    Ok(())
+}
+
+/// 删除标签。`task_tags` 的外键是 `ON DELETE CASCADE`，关联会自动清理，
+/// 任务本身保留（连接已开 `PRAGMA foreign_keys`）。
+pub fn delete_tag(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM tags WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn list_tags_with_counts(conn: &Connection) -> Result<Vec<TagCount>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.name, t.color,
+                COALESCE(SUM(CASE WHEN tk.status = 'active' THEN 1 ELSE 0 END), 0),
+                COUNT(tk.id)
+         FROM tags t
+         LEFT JOIN task_tags tt ON tt.tag_id = t.id
+         LEFT JOIN tasks tk ON tk.id = tt.task_id
+         GROUP BY t.id, t.name, t.color
+         ORDER BY t.name",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok(TagCount {
+            tag: Tag {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                color: r.get(2)?,
+            },
+            active: r.get(3)?,
+            total: r.get(4)?,
+        })
+    })?;
+    Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+}
+
 /// 按名称确保标签存在（不存在则创建），返回标签 id 列表（顺序与输入一致，自动去重）。
 pub fn ensure_tags(conn: &Connection, names: &[String]) -> Result<Vec<String>> {
     let mut ids = Vec::new();
@@ -311,8 +441,8 @@ pub fn ensure_tags(conn: &Connection, names: &[String]) -> Result<Vec<String>> {
             None => {
                 let id = new_id();
                 conn.execute(
-                    "INSERT INTO tags(id, name, color) VALUES (?1, ?2, NULL)",
-                    params![id, name],
+                    "INSERT INTO tags(id, name, color) VALUES (?1, ?2, ?3)",
+                    params![id, name, default_tag_color(name)],
                 )?;
                 id
             }

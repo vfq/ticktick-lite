@@ -31,12 +31,20 @@ pub struct ExportTask {
     pub title: String,
     pub note: Option<String>,
     pub priority: String,
-    pub tags: Vec<String>,
+    /// v2 起为对象数组，带颜色；v1 是纯字符串数组
+    pub tags: Vec<ExportTag>,
     pub created_at: String,
     pub completed_at: Option<String>,
     pub due_at: Option<String>,
     pub pomodoros: Vec<ExportPomodoro>,
     pub total_focus_secs: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportTag {
+    pub name: String,
+    /// `#RRGGBB`
+    pub color: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -91,7 +99,14 @@ pub fn export_vault_completed(conn: &Connection, vault_id: &str) -> Result<Expor
             title: task.title,
             note: task.note,
             priority: task.priority.as_str().to_string(),
-            tags: task.tags.iter().map(|t| t.name.clone()).collect(),
+            tags: task
+                .tags
+                .iter()
+                .map(|t| ExportTag {
+                    name: t.name.clone(),
+                    color: t.color_hex_string(),
+                })
+                .collect(),
             created_at: format_ts(task.created_at),
             completed_at: task.completed_at.map(format_ts),
             due_at: task.due_at.map(format_ts),
@@ -102,7 +117,7 @@ pub fn export_vault_completed(conn: &Connection, vault_id: &str) -> Result<Expor
 
     Ok(ExportFile {
         app: "ticktick-lite",
-        format_version: 1,
+        format_version: 2,
         exported_at: format_ts(crate::model::now_ts()),
         vault: ExportVault {
             id: vault.id,

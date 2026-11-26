@@ -128,6 +128,7 @@ impl RootView {
             &TaskFilter {
                 vault_id: self.filter_vault.clone(),
                 status,
+                tag_ids: Vec::new(),
             },
         )
         .unwrap_or_default();
@@ -338,19 +339,21 @@ impl RootView {
 
         let Ok(conn) = self.db.connect() else { return };
         let result = match task_id {
-            Some(id) => repo::update_task_details(
+            Some(id) => repo::update_task(
                 &conn,
                 &id,
-                &title_text,
-                if note_text.is_empty() {
-                    None
-                } else {
-                    Some(note_text.as_str())
+                repo::TaskEdit {
+                    title: &title_text,
+                    note: if note_text.is_empty() {
+                        None
+                    } else {
+                        Some(note_text.as_str())
+                    },
+                    priority,
+                    due_at,
+                    vault_id: &vault_id,
+                    tag_names: &tag_names,
                 },
-                priority,
-                due_at,
-                &vault_id,
-                &tag_names,
             )
             .map(|_| ()),
             None => repo::create_task(

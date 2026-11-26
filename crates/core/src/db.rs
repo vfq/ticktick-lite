@@ -1,10 +1,17 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, params};
 
 use crate::error::Result;
+use crate::model::default_tag_color;
 
-/// 数据库结构 DDL（版本 1）
+/// 当前数据库结构版本。
+///
+/// - v1：初版（vaults / tags / tasks / task_tags / pomodoro_sessions / settings）
+/// - v2：新增 `idx_task_tags_tag_id`（按标签反查任务不再全表扫）+ 回填历史标签颜色
+pub const SCHEMA_VERSION: i64 = 2;
+
+/// 数据库结构 DDL（始终是最新版本，`IF NOT EXISTS` 保证可重复执行）
 pub const DDL: &str = r#"
 CREATE TABLE IF NOT EXISTS schema_meta (
     version INTEGER NOT NULL
@@ -45,6 +52,7 @@ CREATE TABLE IF NOT EXISTS task_tags (
     tag_id  TEXT NOT NULL REFERENCES tags(id)  ON DELETE CASCADE,
     PRIMARY KEY (task_id, tag_id)
 );
+CREATE INDEX IF NOT EXISTS idx_task_tags_tag_id ON task_tags(tag_id);
 
 CREATE TABLE IF NOT EXISTS pomodoro_sessions (
     id            TEXT PRIMARY KEY,
@@ -104,12 +112,59 @@ impl Database {
 }
 
 /// 执行结构迁移（幂等）。
+///
+/// `DDL` 用 `IF NOT EXISTS` 把库补到最新形态，`schema_meta` 记录版本；
+/// 需要用 Rust 代码处理的数据迁移（如 v2 的颜色回填）按版本号逐级补齐。
 pub fn migrate(conn: &Connection) -> Result<()> {
     conn.execute_batch(DDL)?;
-    // schema_meta 初始化
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM schema_meta", [], |r| r.get(0))?;
-    if count == 0 {
-        conn.execute("INSERT INTO schema_meta(version) VALUES (1)", [])?;
+
+    // 空表时 `MAX(version)` 返回一行 NULL，因此这里拿到的是 Option 而不是 NoRows。
+    let current: Option<i64> =
+        conn.query_row("SELECT MAX(version) FROM schema_meta", [], |r| r.get(0))?;
+
+    match current {
+        None => {
+            conn.execute(
+                "INSERT INTO schema_meta(version) VALUES (?1)",
+                params![SCHEMA_VERSION],
+            )?;
+        }
+        Some(v) if v < SCHEMA_VERSION => {
+            if v < 2 {
+                migrate_to_v2(conn)?;
+            }
+            // 原地更新，保持 schema_meta 只有一行（该表无主键约束，INSERT 会累积垃圾行）
+            conn.execute(
+                "UPDATE schema_meta SET version = ?1",
+                params![SCHEMA_VERSION],
+            )?;
+        }
+        Some(_) => {}
+    }
+    Ok(())
+}
+
+/// v2：为 `task_tags` 建反向索引，并回填历史标签颜色。
+fn migrate_to_v2(conn: &Connection) -> Result<()> {
+    conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_task_tags_tag_id ON task_tags(tag_id);")?;
+    backfill_tag_colors(conn)
+}
+
+/// 给 `color` 为 NULL / 空串的标签按名称派生一个稳定颜色。
+///
+/// 只处理缺失值 → 幂等；已有颜色（包括用户手选的）一律不动。
+fn backfill_tag_colors(conn: &Connection) -> Result<()> {
+    let pending: Vec<(String, String)> = {
+        let mut stmt =
+            conn.prepare("SELECT id, name FROM tags WHERE color IS NULL OR color = ''")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()?
+    };
+    for (id, name) in pending {
+        conn.execute(
+            "UPDATE tags SET color = ?2 WHERE id = ?1",
+            params![id, default_tag_color(&name)],
+        )?;
     }
     Ok(())
 }

@@ -111,3 +111,4 @@ pub fn list_tags_with_counts(conn) -> Result<Vec<TagCount>>;
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-11-26 | v1 | 初稿，四层全量 |
+| 2026-11-26 | v1.1 | 数据层落地：schema v2（`idx_task_tags_tag_id` + 颜色回填）、`TAG_PALETTE`/`parse_hex_color`/`default_tag_color`/`Tag::color_hex`、标签 CRUD 与 `list_tags_with_counts`、`TaskFilter.tag_ids`（OR 语义）、导出 `format_version: 2`。`update_task_details` 收敛为 `TaskEdit` + `update_task`（顺带清掉 `too_many_arguments` 的 allow）。对应测试 17 项见 `crates/core/tests/core_flow.rs`。 |

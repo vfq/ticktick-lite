@@ -10,6 +10,9 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("记录不存在: {0}")]
     NotFound(String),
+    /// 唯一约束冲突（如重名标签），需要给用户看的可读原因
+    #[error("{0}")]
+    Conflict(String),
     #[error("{0}")]
     Other(String),
 }

@@ -8,8 +8,10 @@ pub mod export;
 pub mod model;
 pub mod plugin;
 pub mod repo;
+pub mod settings;
 
 pub use db::Database;
 pub use error::{Error, Result};
 pub use model::{PomodoroKind, PomodoroSession, Priority, Tag, Task, TaskStatus, Vault};
 pub use plugin::Plugin;
+pub use settings::{AppSettings, PomodoroConfig};

@@ -104,11 +104,85 @@ pub struct Vault {
     pub created_at: i64,
 }
 
+/// 标签调色板：8 色，人工可区分且不需要滚动选择。
+///
+/// 前 4 色复用 [`Priority`] 的语义色系，保证优先级与标签处在同一视觉语言里。
+pub const TAG_PALETTE: [u32; 8] = [
+    0x2563EB, // 蓝
+    0x30A46C, // 绿
+    0xE5484D, // 红
+    0xF76B15, // 橙
+    0x8E4EC6, // 紫
+    0x0091FF, // 亮蓝
+    0xD6405F, // 玫红
+    0x6B7280, // 灰
+];
+
+/// 颜色解析与派生全部失败时的最后兜底（中性灰）。
+pub const TAG_COLOR_FALLBACK: u32 = 0x6B7280;
+
+/// 解析 `#RRGGBB` 或 `RRGGBB`（大小写均可）为 `0xRRGGBB`。
+///
+/// 只接受恰好 6 位十六进制，不做 `#RGB` 之类的简写展开——数据库里只写规范形式，
+/// 出现简写说明是脏数据，交给调用方回落默认色。
+pub fn parse_hex_color(s: &str) -> Option<u32> {
+    let s = s.trim().trim_start_matches('#');
+    if s.len() != 6 || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    u32::from_str_radix(s, 16).ok()
+}
+
+/// 格式化为 `#RRGGBB`（大写），只取低 24 位。
+pub fn color_to_hex(c: u32) -> String {
+    format!("#{:06X}", c & 0x00FF_FFFF)
+}
+
+/// 由标签名派生默认色：FNV-1a 哈希落调色板，**保证同名同色**。
+///
+/// 幂等且与机器无关，因此两台独立迁移的数据库对同一标签名会得到同一颜色。
+pub fn default_tag_color(name: &str) -> String {
+    let mut h: u32 = 0x811C_9DC5;
+    for b in name.as_bytes() {
+        h ^= u32::from(*b);
+        h = h.wrapping_mul(0x0100_0193);
+    }
+    color_to_hex(TAG_PALETTE[(h as usize) % TAG_PALETTE.len()])
+}
+
+/// 把外部传入的颜色规范化为 `#RRGGBB`；缺失或非法时回落到名称派生色。
+///
+/// 写入路径统一走这里，因此数据库里不会出现 `null` / `red` / `#abc` 这类值。
+pub fn tag_color_or_default(color: Option<&str>, name: &str) -> String {
+    color
+        .and_then(parse_hex_color)
+        .map(color_to_hex)
+        .unwrap_or_else(|| default_tag_color(name))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tag {
     pub id: String,
     pub name: String,
     pub color: Option<String>,
+}
+
+impl Tag {
+    /// 展示用颜色：优先解析存储值，失败回落名称派生色，再失败回落中性灰。
+    ///
+    /// 展示层不允许因为一条脏数据而渲染异常或 panic——非法值降级，不报错。
+    pub fn color_hex(&self) -> u32 {
+        self.color
+            .as_deref()
+            .and_then(parse_hex_color)
+            .or_else(|| parse_hex_color(&default_tag_color(&self.name)))
+            .unwrap_or(TAG_COLOR_FALLBACK)
+    }
+
+    /// 展示用颜色（`#RRGGBB`），用于导出与跨层传递。
+    pub fn color_hex_string(&self) -> String {
+        color_to_hex(self.color_hex())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

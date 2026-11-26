@@ -12,6 +12,7 @@ thiserror.workspace = true
 uuid.workspace = true
 time.workspace = true
 rusqlite.workspace = true
+log = "0.4"
 
 [dev-dependencies]
 tempfile = "3"
