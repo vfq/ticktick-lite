@@ -31,9 +31,30 @@ jobs:
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+      - name: Checkout
+        # actions/checkout 内置 3 次短重试，扛不住该机到 github.com 的间歇性
+        # GnuTLS / HTTP2 中断（实测同一分钟内连续失败、随后一次即成功）。
+        # 改为自管重试：最多 6 次，线性退避。做法与同机 dqqxfw 仓库一致。
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          cd "$GITHUB_WORKSPACE"
+          find . -mindepth 1 -maxdepth 1 ! -name target -exec rm -rf {} +
+          git init -q .
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for i in 1 2 3 4 5 6; do
+            if git fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
+               || git fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
+              git checkout -q FETCH_HEAD
+              echo "checkout ok (attempt $i)"
+              exit 0
+            fi
+            echo "checkout attempt $i failed; retry in $((i*15))s"
+            sleep $((i*15))
+          done
+          echo "checkout failed after 6 attempts" >&2
+          exit 1
       - name: Setup Rust
         # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
         # rust-toolchain.toml 锁定 1.100，rustup 会按需安装（走顶层的 USTC 镜像）。
@@ -56,9 +77,30 @@ jobs:
       # 按 job 隔离 target 目录，避免同机多个 cargo 抢同一目录互锁 .o 文件
       CARGO_TARGET_DIR: /var/cache/ticktick/target-clippy
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+      - name: Checkout
+        # actions/checkout 内置 3 次短重试，扛不住该机到 github.com 的间歇性
+        # GnuTLS / HTTP2 中断（实测同一分钟内连续失败、随后一次即成功）。
+        # 改为自管重试：最多 6 次，线性退避。做法与同机 dqqxfw 仓库一致。
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          cd "$GITHUB_WORKSPACE"
+          find . -mindepth 1 -maxdepth 1 ! -name target -exec rm -rf {} +
+          git init -q .
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for i in 1 2 3 4 5 6; do
+            if git fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
+               || git fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
+              git checkout -q FETCH_HEAD
+              echo "checkout ok (attempt $i)"
+              exit 0
+            fi
+            echo "checkout attempt $i failed; retry in $((i*15))s"
+            sleep $((i*15))
+          done
+          echo "checkout failed after 6 attempts" >&2
+          exit 1
       - name: Setup Rust
         # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
         # rust-toolchain.toml 锁定 1.100，rustup 会按需安装（走顶层的 USTC 镜像）。
@@ -82,9 +124,30 @@ jobs:
     env:
       CARGO_TARGET_DIR: /var/cache/ticktick/target-test
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+      - name: Checkout
+        # actions/checkout 内置 3 次短重试，扛不住该机到 github.com 的间歇性
+        # GnuTLS / HTTP2 中断（实测同一分钟内连续失败、随后一次即成功）。
+        # 改为自管重试：最多 6 次，线性退避。做法与同机 dqqxfw 仓库一致。
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          cd "$GITHUB_WORKSPACE"
+          find . -mindepth 1 -maxdepth 1 ! -name target -exec rm -rf {} +
+          git init -q .
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for i in 1 2 3 4 5 6; do
+            if git fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
+               || git fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
+              git checkout -q FETCH_HEAD
+              echo "checkout ok (attempt $i)"
+              exit 0
+            fi
+            echo "checkout attempt $i failed; retry in $((i*15))s"
+            sleep $((i*15))
+          done
+          echo "checkout failed after 6 attempts" >&2
+          exit 1
       - name: Setup Rust
         # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
         # rust-toolchain.toml 锁定 1.100，rustup 会按需安装（走顶层的 USTC 镜像）。
@@ -104,9 +167,30 @@ jobs:
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+      - name: Checkout
+        # actions/checkout 内置 3 次短重试，扛不住该机到 github.com 的间歇性
+        # GnuTLS / HTTP2 中断（实测同一分钟内连续失败、随后一次即成功）。
+        # 改为自管重试：最多 6 次，线性退避。做法与同机 dqqxfw 仓库一致。
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          cd "$GITHUB_WORKSPACE"
+          find . -mindepth 1 -maxdepth 1 ! -name target -exec rm -rf {} +
+          git init -q .
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for i in 1 2 3 4 5 6; do
+            if git fetch --depth=1 --no-tags origin "$GITHUB_SHA" \
+               || git fetch --depth=1 --no-tags origin "$GITHUB_REF"; then
+              git checkout -q FETCH_HEAD
+              echo "checkout ok (attempt $i)"
+              exit 0
+            fi
+            echo "checkout attempt $i failed; retry in $((i*15))s"
+            sleep $((i*15))
+          done
+          echo "checkout failed after 6 attempts" >&2
+          exit 1
       - name: Check docs front matter
         run: |
           set -e
