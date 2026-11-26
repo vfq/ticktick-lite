@@ -1,6 +1,6 @@
 # 滴答 Lite（TickTick Lite）
 
-仿 TickTick 的 Windows 桌面悬浮小窗 Todo 应用，使用 **Rust 1.98 + gpui + GPUI Kit（gpui-component）** 构建，数据存储在本地 SQLite。
+仿 TickTick 的 Windows 桌面悬浮小窗 Todo 应用，使用 **Rust 1.100 + gpui + GPUI Kit（gpui-component）** 构建，数据存储在本地 SQLite。
 
 ## 功能
 
@@ -16,7 +16,7 @@
 
 ## 构建与运行
 
-前置条件：Windows + Visual Studio Build Tools（C++ 工作负载）+ Windows SDK。Rust 工具链由 `rust-toolchain.toml` 锁定为 **1.98**。
+前置条件：Windows + Visual Studio Build Tools（C++ 工作负载）+ Windows SDK。Rust 工具链由 `rust-toolchain.toml` 锁定为 **1.100**。
 
 ```bash
 cargo run -p ticktick-app          # 调试运行（首次编译 gpui 约需 10+ 分钟）

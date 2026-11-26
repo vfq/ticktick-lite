@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
       - name: Setup Rust
         # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
-        # rust-toolchain.toml 锁定 1.98，rustup 会按需安装（走顶层的 USTC 镜像）。
+        # rust-toolchain.toml 锁定 1.100，rustup 会按需安装（走顶层的 USTC 镜像）。
         run: |
           set -eu
           export PATH="$HOME/.cargo/bin:$PATH"
@@ -61,7 +61,7 @@ jobs:
           persist-credentials: false
       - name: Setup Rust
         # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
-        # rust-toolchain.toml 锁定 1.98，rustup 会按需安装（走顶层的 USTC 镜像）。
+        # rust-toolchain.toml 锁定 1.100，rustup 会按需安装（走顶层的 USTC 镜像）。
         run: |
           set -eu
           export PATH="$HOME/.cargo/bin:$PATH"
@@ -87,7 +87,7 @@ jobs:
           persist-credentials: false
       - name: Setup Rust
         # 该机已预装 rustup，但 runner 服务的 PATH 不含 ~/.cargo/bin，必须每轮显式补。
-        # rust-toolchain.toml 锁定 1.98，rustup 会按需安装（走顶层的 USTC 镜像）。
+        # rust-toolchain.toml 锁定 1.100，rustup 会按需安装（走顶层的 USTC 镜像）。
         run: |
           set -eu
           export PATH="$HOME/.cargo/bin:$PATH"

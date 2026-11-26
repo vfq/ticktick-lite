@@ -12,7 +12,7 @@ updated: 2026-11-26
 - **Windows 10/11**（本项目仅支持 Windows：`windows` crate、`tray-icon`、`gpui-pre-windows` 均为平台专属）
 - **Visual Studio Build Tools**，勾选 "Desktop development with C++" + Windows SDK
   （`rusqlite` 的 `bundled` 特性需要 C 编译器编译 SQLite）
-- Rust 工具链由 `rust-toolchain.toml` 自动锁定为 **1.98**，并自动安装 `rustfmt`
+- Rust 工具链由 `rust-toolchain.toml` 自动锁定为 **1.100**，并自动安装 `rustfmt`
 
 ## 本机允许的命令
 
