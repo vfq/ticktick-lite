@@ -72,7 +72,7 @@ fn full_flow_vault_task_tag_complete_export() {
     };
     repo::insert_pomodoro_session(&conn, &s1).unwrap();
     repo::insert_pomodoro_session(&conn, &s2).unwrap();
-    let totals = repo::focus_totals(&conn, &[task.id.clone()]).unwrap();
+    let totals = repo::focus_totals(&conn, std::slice::from_ref(&task.id)).unwrap();
     assert_eq!(totals.get(&task.id), Some(&1500), "仅统计完整完成的专注");
 
     // complete task

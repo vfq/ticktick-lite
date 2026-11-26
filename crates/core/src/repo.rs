@@ -193,7 +193,7 @@ pub fn get_task(conn: &Connection, id: &str) -> Result<Task> {
             rusqlite::Error::QueryReturnedNoRows => Error::NotFound(format!("task {id}")),
             other => Error::Db(other),
         })?;
-    let tags = tags_for_tasks(conn, &[task.id.clone()])?;
+    let tags = tags_for_tasks(conn, std::slice::from_ref(&task.id))?;
     task.tags = tags.into_values().next().unwrap_or_default();
     Ok(task)
 }
