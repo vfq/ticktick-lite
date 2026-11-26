@@ -125,4 +125,4 @@ self.open_settings_window(cx)?;          // update() 返回 Err = 已关闭，�
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-11-26 | v1 | 初稿，独立窗口 + 即时保存 |
-| 2026-11-26 | v1.1 | 落地（P4a/P4b）。`SettingsStore` 作为跨窗口单一真相实体：改值即`clamp`→落库→`emit(SettingsChanged)`；主窗订阅后同步置顶并 `reload`。设置窗为独立 gpui 窗口（440×540，`WindowKind::Normal` + 自绘 34px 标题栏走 `window_control_area(Drag)`），左导航三区（常规/番茄钟/标签），右侧 `overflow_y_scroll`。窗口句柄存 `RootView::settings_window`，`open_or_focus` 用 `AnyWindowHandle::update` 判活去重。**AC-7 从"一并隐藏"改为"一并关闭"**：托盘只有「显示窗口」一个入口，隐藏后无法召回设置窗，会留下永久不可见的孤儿窗口，属实现期的合理修正。 |
+| 2026-11-26 | v1.1 | 落地（P4a/P4b）。`SettingsStore` 作为跨窗口单一真相实体：改值即`clamp`→落库→`emit(SettingsChanged)`；主窗订阅后同步置顶并 `reload`。设置窗为独立 gpui 窗口（440×560，`WindowKind::Normal` + 自绘 34px 标题栏走 `window_control_area(Drag)`），左导航三区（常规/番茄钟/标签），右侧 `overflow_y_scroll`。窗口句柄存 `RootView::settings_window`，`open_or_focus` 用 `AnyWindowHandle::update` 判活去重。**AC-7 从"一并隐藏"改为"一并关闭"**：托盘只有「显示窗口」一个入口，隐藏后无法召回设置窗，会留下永久不可见的孤儿窗口，属实现期的合理修正。 |

@@ -38,7 +38,7 @@
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   th { color: var(--text-2); font-weight: 500; }
   .stage { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
-  .win { width: 380px; height: 620px; background: var(--bg); border: 1px solid var(--border-strong);
+  .win { position: relative; width: 380px; height: 620px; background: var(--bg); border: 1px solid var(--border-strong);
     border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;
     box-shadow: 0 12px 32px rgba(15,23,42,.12); flex: none; }
   .tb { height: 40px; background: var(--bg-sub); border-bottom: 1px solid var(--border);
@@ -84,19 +84,60 @@
   .op { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
     color: var(--text-3); font-size: 11px; }
   .op:hover { background: var(--bg-active); color: var(--text); }
-  .pomo { border-top: 1px solid var(--border); background: #FAFBFC; padding: 10px 12px; flex: none; }
-  .pomo .ph { display: flex; align-items: center; font-size: 12px; font-weight: 600; }
+  .pomo { position: absolute; right: 12px; bottom: 12px; width: 320px;
+    background: #FFFFFF; border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 12px; box-shadow: 0 8px 24px rgba(15,23,42,.14); }
+  .pomo.off { display: none; }
+  .pomo .ph { display: flex; align-items: center; font-size: 11px; color: var(--text-2); }
   .pomo .ph .sp { flex: 1; }
-  .pomo .tm { font-size: 24px; font-weight: 600; font-family: "Cascadia Mono", Consolas, monospace;
-    color: var(--p-high); margin: 4px 0 2px; letter-spacing: .5px; }
-  .bar { height: 4px; background: var(--border); border-radius: 999px; overflow: hidden; }
+  .pomo .tm { font-size: 22px; font-weight: 600; font-family: "Cascadia Mono", Consolas, monospace;
+    color: var(--p-high); letter-spacing: .5px; }
+  .pomo .hd { display: flex; align-items: center; justify-content: space-between; }
+  .bar { height: 4px; background: var(--border); border-radius: 999px; overflow: hidden; margin: 6px 0; }
   .bar i { display: block; height: 100%; background: var(--p-high); width: 42%; }
-  .pomo .lk { font-size: 11px; color: var(--text-2); margin-top: 6px; }
+  .pomo .lk { font-size: 11px; color: var(--text-2); }
   .pomo .btns { display: flex; gap: 6px; margin-top: 8px; }
   .btn { padding: 5px 12px; border-radius: var(--r-sm); font-size: 12px; cursor: pointer; border: 1px solid transparent; }
   .btn.pri { background: var(--p-high); color: #fff; }
   .btn.sec { background: var(--bg-sub); color: var(--text); border-color: var(--border); }
-  .collapsed .hide { display: none; }
+
+  /* 标签 chip：颜色来自 core::model::TAG_PALETTE，底/字/描边由同一色按
+     14% / 100% / 35% 不透明度派生（对应 theme_ext::tag_chip_colors） */
+  .tagc { --c: #6B7280; padding: 0 6px; border-radius: 999px; font-size: 11px; cursor: pointer;
+    background: color-mix(in srgb, var(--c) 14%, #fff);
+    color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 35%, #fff); }
+  .tagbar { display: flex; align-items: center; gap: 6px; padding: 0 12px 8px; flex-wrap: wrap;
+    font-size: 11px; color: var(--text-3); flex: none; }
+  .tagbar a { color: var(--primary); cursor: pointer; text-decoration: none; }
+
+  /* 设置窗口：独立 440×560 窗，自绘 34px 标题栏 + 左导航 + 右滚动区 */
+  .swin { width: 440px; height: 560px; background: var(--bg); border: 1px solid var(--border-strong);
+    border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;
+    box-shadow: 0 12px 32px rgba(15,23,42,.12); flex: none; }
+  .stb { height: 34px; background: var(--bg-sub); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding-left: 12px; font-size: 11px; font-weight: 600;
+    color: var(--text-2); flex: none; }
+  .stb .sp { flex: 1; }
+  .sbody { flex: 1; display: flex; min-height: 0; }
+  .snav { width: 104px; flex: none; background: var(--bg-sub); padding: 8px; display: flex;
+    flex-direction: column; gap: 4px; }
+  .snav i { padding: 4px 8px; border-radius: var(--r-sm); font-size: 13px; font-style: normal;
+    color: var(--text-2); cursor: pointer; }
+  .snav i.on { background: var(--bg-active); color: var(--primary); }
+  .sc { flex: 1; padding: 16px; overflow-y: auto; }
+  .sc h5 { margin: 8px 0 4px; font-size: 11px; font-weight: 600; color: var(--text-3); }
+  .srow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+  .srow .l { font-size: 13px; }
+  .srow .h { font-size: 11px; color: var(--text-3); }
+  .sw-t { width: 34px; height: 18px; border-radius: 999px; background: #D9DCE1; display: flex;
+    align-items: center; padding: 0 2px; flex: none; }
+  .sw-t.on { background: var(--primary); justify-content: flex-end; }
+  .sw-t b { width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+  .step { display: flex; align-items: center; gap: 4px; flex: none; }
+  .step u { width: 22px; height: 22px; border-radius: var(--r-sm); border: 1px solid var(--border);
+    background: var(--bg-sub); display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--text-2); text-decoration: none; cursor: pointer; }
+  .step span { width: 52px; font-size: 13px; }
   .ctrl { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px 18px; flex: 1; min-width: 260px; }
   .ctrl label { display: block; font-size: 12px; margin-bottom: 8px; cursor: pointer; }
   .kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--border-strong); border-bottom-width: 2px;
@@ -117,19 +158,21 @@
         <li><b>零学习成本</b>：清单、勾选、时间段沿用 TickTick 心智模型</li>
         <li><b>高频优先</b>：快速添加常驻顶部，回车即创建</li>
         <li><b>可扫读</b>：优先级分组 + 左侧色条，一眼定位要事</li>
-        <li><b>一屏闭环</b>：不做二级页面，复杂操作走轻量覆盖层</li>
+        <li><b>一屏闭环</b>：日常操作（加 / 勾 / 编 / 筛）全在主窗内完成，编辑类走轻量覆盖层</li>
+        <li><b>配置外置</b>：低频配置不挤占小窗，收进独立设置窗口</li>
         <li><b>克制动效</b>：150ms 过渡，仅用于状态确认</li>
       </ul>
     </div>
     <div class="card">
       <h4>信息架构</h4>
       <ul>
-        <li>标题栏 40px：拖拽 · 置顶 · 最小化到托盘</li>
+        <li>标题栏 40px：拖拽 · 🍅 番茄钟 · ⚙ 设置 · 置顶 · 最小化到托盘</li>
         <li>快速添加 52px：常驻输入框</li>
         <li>清单切换 36px：横向 chip + 计数</li>
         <li>工具条 28px：计数 · 已完成 · 导出</li>
+        <li>标签筛选条：仅有选中标签时出现</li>
         <li>任务列表：优先级分组滚动区</li>
-        <li>番茄钟 108px：可折叠插件条</li>
+        <li>番茄钟：右下角浮层，默认收起，不占常驻高度</li>
       </ul>
     </div>
     <div class="card">
@@ -150,6 +193,8 @@
     <div class="win" id="win">
       <div class="tb">
         <span class="dot"></span><span class="name">滴答 Lite</span><span class="sp"></span>
+        <div class="wbtn" id="btnPomo" title="番茄钟">🍅</div>
+        <div class="wbtn" title="设置">⚙</div>
         <div class="wbtn on" id="pin" title="置顶">钉</div>
         <div class="wbtn" title="最小化到托盘">—</div>
         <div class="wbtn" title="隐藏到托盘">✕</div>
@@ -165,30 +210,89 @@
         <span id="count">5 项任务</span><span class="sp"></span>
         <a id="tgDone">显示已完成</a><a>导出 JSON</a>
       </div>
+      <div class="tagbar" id="tagbar">
+        <span>按标签筛选</span>
+        <span class="tagc" style="--c:#2563EB">汇报 ✕</span>
+        <span class="tagc" style="--c:#8E4EC6">客户 ✕</span>
+        <a id="clearTag">清除</a>
+      </div>
       <div class="list" id="list"></div>
-      <div class="pomo collapsed" id="pomo">
-        <div class="ph"><span>番茄钟 · 专注中</span><span class="sp"></span><a id="tgPomo">展开</a></div>
-        <div class="hide">
+      <div class="pomo off" id="pomo">
+        <div class="ph"><span>专注中</span><span class="sp"></span></div>
+        <div class="hd">
           <div class="tm">24:59</div>
-          <div class="bar"><i></i></div>
-          <div class="lk">关联任务：写季度汇报</div>
-          <div class="btns"><div class="btn pri">暂停</div><div class="btn sec">放弃</div></div>
+          <div style="font-size:12px;color:var(--text-3);cursor:pointer">▾</div>
         </div>
+        <div class="bar"><i></i></div>
+        <div class="lk">关联任务：写季度汇报</div>
+        <div class="btns"><div class="btn pri">暂停</div><div class="btn sec">放弃</div></div>
       </div>
     </div>
 
     <div class="ctrl">
       <h3>状态开关</h3>
       <label><input type="checkbox" id="cDone"> 显示已完成任务</label>
-      <label><input type="checkbox" id="cPomo" checked> 展开番茄钟</label>
+      <label><input type="checkbox" id="cPomo"> 展开番茄钟浮层（默认收起）</label>
       <label><input type="checkbox" id="cPin" checked> 窗口置顶中</label>
-      <div class="note">任务行：优先级色条 + 圆点双编码；已完成弱化并划掉；截止日期逾期转红。</div>
+      <div class="note">任务行：优先级色条 + 圆点双编码；已完成弱化并划掉；截止日期逾期转红；标签 chip 颜色由标签自身颜色派生。</div>
       <h3>交互态</h3>
       <div class="states">
         <span class="chip">默认</span><span class="chip" style="background:var(--bg-hover)">悬停</span>
         <span class="chip on">选中</span><span class="btn pri">主操作</span><span class="btn sec">次级</span>
       </div>
       <div class="note">过渡 150ms ease-out；焦点环 2px 主色描边；点击目标 ≥24px。</div>
+    </div>
+  </div>
+
+  <h2>设置窗口（独立窗口）</h2>
+  <p>设置不再是主窗覆盖层，而是独立窗口（440×560，自绘 34px 标题栏，可拖动）。
+     左侧固定 104px 导航，右侧内容区独立滚动；所有改动即时生效并落库，没有「保存」按钮。
+     同一时刻只允许一个设置窗：再次点 ⚙ 只把已存在的窗口提到前台。</p>
+  <div class="stage">
+    <div class="swin">
+      <div class="stb">设置<span class="sp"></span><span style="padding:0 12px">✕</span></div>
+      <div class="sbody">
+        <div class="snav">
+          <i>常规</i><i class="on">番茄钟</i><i>标签</i>
+        </div>
+        <div class="sc">
+          <h5>时长（分钟）</h5>
+          <div class="srow">
+            <div><div class="l">专注</div><div class="h">1 – 180</div></div>
+            <div class="step"><u>−</u><span>25 分</span><u>+</u></div>
+          </div>
+          <div class="srow">
+            <div><div class="l">短休息</div><div class="h">1 – 60</div></div>
+            <div class="step"><u>−</u><span>5 分</span><u>+</u></div>
+          </div>
+          <div class="srow">
+            <div><div class="l">长休息</div><div class="h">1 – 120</div></div>
+            <div class="step"><u>−</u><span>15 分</span><u>+</u></div>
+          </div>
+          <div class="srow">
+            <div><div class="l">长休间隔</div><div class="h">连续几轮专注后长休息</div></div>
+            <div class="step"><u>−</u><span>4 轮</span><u>+</u></div>
+          </div>
+          <h5>提醒</h5>
+          <div class="srow">
+            <div><div class="l">系统通知</div><div class="h">每个阶段结束时弹桌面通知</div></div>
+            <div class="sw-t on"><b></b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="flex:1;min-width:260px">
+      <h4>三处必须遵守的一致性</h4>
+      <ul>
+        <li><b>单一真相</b>：主窗与设置窗共享同一个 <code>SettingsStore</code> 实体，任一侧改动都会 <code>emit</code> 后双向同步。</li>
+        <li><b>即时保存</b>：改动即 <code>clamp</code>（越界钳制而非报错）→ 落库 → 广播，不设「应用」按钮。</li>
+        <li><b>标签分区</b>：新建 / 改名 / 点色点展开 8 色板 / 删除需二次确认（文案明确「任务本身不会被删除」）。</li>
+      </ul>
+      <h4 style="margin-top:16px">番茄钟浮层的两条约束</h4>
+      <ul>
+        <li>默认收起：收起态卡片不渲染，右下角也不占位，任务列表拿回完整高度。</li>
+        <li>收起不打断：计时仍在跑，倒计时改为显示在标题栏 🍅 位置。</li>
+      </ul>
     </div>
   </div>
 
@@ -219,6 +323,20 @@
       </div>
     </div>
     <div class="card">
+      <h4>标签色板（默认派生）</h4>
+      <div class="swatches">
+        <span class="sw"><i style="background:#2563EB"></i>#2563EB</span>
+        <span class="sw"><i style="background:#30A46C"></i>#30A46C</span>
+        <span class="sw"><i style="background:#E5484D"></i>#E5484D</span>
+        <span class="sw"><i style="background:#F76B15"></i>#F76B15</span>
+        <span class="sw"><i style="background:#8E4EC6"></i>#8E4EC6</span>
+        <span class="sw"><i style="background:#0091FF"></i>#0091FF</span>
+        <span class="sw"><i style="background:#D6405F"></i>#D6405F</span>
+        <span class="sw"><i style="background:#6B7280"></i>#6B7280 兜底</span>
+      </div>
+      <div class="note">新建标签不传颜色时，按标签名 FNV-1a 取模落到色板，同名同色且跨库稳定；chip 底/字/描边 = 该色 14% / 100% / 35%。</div>
+    </div>
+    <div class="card">
       <h4>字阶 · 间距 · 圆角</h4>
       <table>
         <tr><th>用途</th><th>规格</th></tr>
@@ -239,7 +357,9 @@
     <tr><td>任务行</td><td>白底 + 优先级色条</td><td>#ECEEF1 底，显示行内操作</td><td>编辑态进入覆盖层</td><td>空态提示文案居中</td></tr>
     <tr><td>勾选框</td><td>18px 描边方块</td><td>描边加深</td><td>主色填充 + 白色对勾</td><td>—</td></tr>
     <tr><td>按钮</td><td>次级灰底 / 主色填充</td><td>底色加深</td><td>按下位移 1px</td><td>标题为空时禁用保存</td></tr>
-    <tr><td>番茄钟条</td><td>折叠显示阶段与剩余</td><td>—</td><td>展开显示进度与操作</td><td>未关联任务时提示</td></tr>
+    <tr><td>标签 chip</td><td>标签色 14% 底 + 本色字</td><td>底色不变（点击即筛选）</td><td>出现在筛选条 = 已启用</td><td>无标签则整行不渲染</td></tr>
+    <tr><td>番茄钟浮层</td><td>收起（标题栏 🍅）</td><td>—</td><td>展开为右下角 320px 卡片</td><td>未关联任务时提示</td></tr>
+    <tr><td>设置窗口</td><td>独立 440×560 窗</td><td>导航项悬停加深</td><td>当前分区蓝底蓝字</td><td>页脚红字显示冲突原因</td></tr>
     <tr><td>覆盖层</td><td>30% 遮罩 + 12px 圆角卡片</td><td>—</td><td>主输入自动聚焦</td><td>Esc 关闭</td></tr>
   </table>
 
@@ -260,8 +380,11 @@
     <tr><td>清单切换 chip 行</td><td><code>crates/app/src/view/sidebar.rs</code></td></tr>
     <tr><td>任务列表与行内操作</td><td><code>crates/app/src/view/task_list.rs</code></td></tr>
     <tr><td>覆盖层（编辑 / 导出 / 确认）</td><td><code>crates/app/src/view/overlays.rs</code></td></tr>
-    <tr><td>番茄钟插件条</td><td><code>plugins/pomodoro/src/panel.rs</code></td></tr>
-    <tr><td>置顶 / 托盘平台能力</td><td><code>crates/app/src/platform.rs</code>、<code>tray.rs</code></td></tr>
+    <tr><td>标签选择 / 筛选条</td><td><code>crates/app/src/view/{overlays,task_list}.rs</code>（<code>tag_picker</code> / <code>render_filter_bar</code>）</td></tr>
+    <tr><td>标签色派生与 chip 配色</td><td><code>crates/core/src/model.rs</code>（<code>TAG_PALETTE</code>）、<code>crates/app/src/theme_ext.rs</code>（<code>tag_chip_colors</code>）</td></tr>
+    <tr><td>番茄钟浮层</td><td><code>plugins/pomodoro/src/panel.rs</code>（卡片），定位在 <code>crates/app/src/view/mod.rs</code></td></tr>
+    <tr><td>设置窗口</td><td><code>crates/app/src/view/settings_window.rs</code> + <code>crates/app/src/settings_store.rs</code></td></tr>
+    <tr><td>置顶 / 托盘 / AUMID 平台能力</td><td><code>crates/app/src/platform.rs</code>、<code>tray.rs</code></td></tr>
   </table>
 </div>
 
@@ -273,6 +396,11 @@ const TASKS = [
   {p:'#0091FF', t:'更新依赖版本', tags:['工程'], due:'', od:false, focus:'', done:false, g:'低优先级'},
   {p:'#9CA3AF', t:'买牛奶', tags:[], due:'', od:false, focus:'', done:true, g:'已完成'}
 ];
+const TAGC = { 汇报: '#2563EB', 客户: '#8E4EC6', 内部: '#30A46C', 工程: '#F76B15' };
+function tagHtml(name) {
+  const c = TAGC[name] || '#6B7280';
+  return '<span class="tagc" style="--c:' + c + '">' + name + '</span>';
+}
 function render(){
   const showDone = document.getElementById('cDone').checked;
   const list = document.getElementById('list');
@@ -285,7 +413,7 @@ function render(){
     row.style.borderLeftColor = x.done ? 'transparent' : x.p;
     row.innerHTML = '<div class="cb'+(x.done?' done':'')+'"></div>' +
       '<div class="body"><div class="t">'+x.t+'</div><div class="meta">' +
-      (x.tags.length? '<span class="tag">'+x.tags.join('</span><span class="tag">')+'</span>':'') +
+      (x.tags.length? '<span style="display:flex;gap:4px">' + x.tags.map(tagHtml).join('') + '</span>':'') +
       (x.due? '<span class="due'+(x.od?' od':'')+'">'+x.due+'</span>':'') +
       (x.focus? '<span class="focus">'+x.focus+'</span>':'') +
       '</div></div><div class="ops"><span class="op">▶</span><span class="op">✎</span><span class="op">✕</span></div>';
@@ -300,11 +428,10 @@ document.getElementById('tgDone').addEventListener('click', () => {
   const c = document.getElementById('cDone'); c.checked = !c.checked; c.dispatchEvent(new Event('change'));
 });
 document.getElementById('cPomo').addEventListener('change', e => {
-  const p = document.getElementById('pomo');
-  p.classList.toggle('collapsed', !e.target.checked);
-  document.getElementById('tgPomo').textContent = e.target.checked ? '收起' : '展开';
+  document.getElementById('pomo').classList.toggle('off', !e.target.checked);
+  document.getElementById('btnPomo').classList.toggle('on', e.target.checked);
 });
-document.getElementById('tgPomo').addEventListener('click', () => {
+document.getElementById('btnPomo').addEventListener('click', () => {
   const c = document.getElementById('cPomo'); c.checked = !c.checked; c.dispatchEvent(new Event('change'));
 });
 document.getElementById('cPin').addEventListener('change', e => {
@@ -316,7 +443,17 @@ document.querySelectorAll('#chips .chip[data-v]').forEach(c => {
     c.classList.add('on');
   });
 });
-document.getElementById('cPomo').checked = false;
+// 筛选条：点 chip 移除该标签，点「清除」整条消失
+document.querySelectorAll('#tagbar .tagc').forEach(t => {
+  t.addEventListener('click', () => {
+    t.remove();
+    if (!document.querySelector('#tagbar .tagc')) document.getElementById('tagbar').style.display = 'none';
+  });
+});
+document.getElementById('clearTag').addEventListener('click', () => {
+  document.querySelectorAll('#tagbar .tagc').forEach(t => t.remove());
+  document.getElementById('tagbar').style.display = 'none';
+});
 render();
 </script>
 </body>

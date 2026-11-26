@@ -25,13 +25,16 @@ cargo fmt --all -- --check   # 检查是否已格式化（CI 同款）
 
 编译与测试一律走 GitHub Actions，本机不跑 `cargo build` / `test` / `clippy`。
 
-**唯一例外**：阶段验收时允许人工执行一次
+**唯一例外**：阶段验收时允许人工执行一次 Check（只 Check、不产出二进制——跳过 codegen 与链接，快且不占磁盘）：
 
 ```bash
-cargo check --workspace --all-targets
+cargo check --workspace --all-targets                 # 默认特性（含番茄钟插件）
+cargo check -p ticktick-app --no-default-features     # 关掉 pomodoro feature 的 cfg 分支
 ```
 
-只 Check、不产出二进制。这与 `cargo build` 的区别是跳过 codegen 与链接，快且不占磁盘。
+第二条不能省：插件是用 `#[cfg(feature = "pomodoro")]` 装配的，关掉特性后
+`RootView` 的字段、标题栏入口、`sync_pomodoro_config` 都会走另一套分支，
+CI（只跑 core）永远覆盖不到。历史上这里最容易留下 `unused_mut` 之类的告警。
 
 ## 通过 CI 获取构建产物
 
