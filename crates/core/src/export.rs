@@ -72,6 +72,8 @@ pub fn export_vault_completed(conn: &Connection, vault_id: &str) -> Result<Expor
         &TaskFilter {
             vault_id: Some(vault_id.to_string()),
             status: Some(TaskStatus::Completed),
+            // 导出不做标签过滤：一个清单的已完成任务应完整导出
+            tag_ids: Vec::new(),
         },
     )?;
     let ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();

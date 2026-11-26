@@ -25,7 +25,9 @@ pub fn render_titlebar(view: &RootView, _window: &mut Window, cx: &mut Context<R
         .border_color(tx::rgba(tx::BORDER))
         .bg(tx::rgba(tx::BG_SUB))
         .child(
-            // 拖动区
+            // 拖动区：用 window_control_area 走平台的 WM_NCHITTEST → HTCAPTION。
+            // 不能用 window.start_window_move()——gpui-pre 在 Windows 后端把该方法
+            // 实现成了空函数（BUG-0001）。
             div()
                 .id("titlebar-drag")
                 .flex_1()
@@ -35,7 +37,7 @@ pub fn render_titlebar(view: &RootView, _window: &mut Window, cx: &mut Context<R
                 .items_center()
                 .gap_2()
                 .pl_3()
-                .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
+                .window_control_area(WindowControlArea::Drag)
                 .child(div().w_2().h_2().rounded_full().bg(tx::rgba(tx::FOCUS)))
                 .child(
                     div()
