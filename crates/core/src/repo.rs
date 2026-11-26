@@ -121,7 +121,7 @@ fn task_from_row(r: &rusqlite::Row) -> rusqlite::Result<Task> {
         title: r.get(2)?,
         note: r.get(3)?,
         priority: Priority::from_i64(priority),
-        status: TaskStatus::from_str(&status),
+        status: TaskStatus::from_db_str(&status),
         due_at: r.get(6)?,
         completed_at: r.get(7)?,
         sort_order: r.get(8)?,
@@ -229,6 +229,10 @@ pub fn list_tasks(conn: &Connection, filter: &TaskFilter) -> Result<Vec<Task>> {
     Ok(tasks)
 }
 
+// TODO(P2)：参数已达 8 个，P2 改造标签时收敛为 `TaskEdit` 结构体传参，
+// 届时去掉这条 allow。当前保留 allow 是为了不在 P0 阶段牵动 app 侧调用点
+// （app 无编译验证通道，见 ADR-0002）。
+#[allow(clippy::too_many_arguments)]
 pub fn update_task_details(
     conn: &Connection,
     id: &str,
@@ -449,7 +453,7 @@ pub fn pomodoros_for_tasks(
         Ok(PomodoroSession {
             id: r.get(0)?,
             task_id: r.get(1)?,
-            kind: PomodoroKind::from_str(&kind),
+            kind: PomodoroKind::from_db_str(&kind),
             planned_secs: r.get(3)?,
             actual_secs: r.get(4)?,
             started_at: r.get(5)?,

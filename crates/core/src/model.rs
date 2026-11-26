@@ -82,7 +82,12 @@ impl TaskStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    /// 宽松解析数据库中的状态文本；无法识别时回落到 `Active`（兼容历史脏数据）。
+    ///
+    /// 命名不用 `from_str`：那是 `std::str::FromStr` 的约定名，固有方法同名会被
+    /// clippy 判为 `should_implement_trait`，而本函数语义是可失败的宽松回退，
+    /// 与 `FromStr` 必须报错的契约不一致。
+    pub fn from_db_str(s: &str) -> Self {
         match s {
             "completed" => TaskStatus::Completed,
             _ => TaskStatus::Active,
@@ -147,7 +152,9 @@ impl PomodoroKind {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    /// 宽松解析数据库中的阶段文本；无法识别时回落到 `Focus`（兼容历史脏数据）。
+    /// 命名理由同 [`TaskStatus::from_db_str`]。
+    pub fn from_db_str(s: &str) -> Self {
         match s {
             "short_break" => PomodoroKind::ShortBreak,
             "long_break" => PomodoroKind::LongBreak,

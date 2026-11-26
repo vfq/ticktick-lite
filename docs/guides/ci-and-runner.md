@@ -119,6 +119,20 @@ gh api repos/<owner>/<repo>/actions/runners --jq '.runners[] | {name, status, la
 4. 仓库设置 → Actions → 勾选「Require approval for all outside collaborators」。
 5. runner 主机不放 deploy key / PAT，不挂载敏感目录。
 
+## clippy 严格模式（`-D warnings`）
+
+`clippy (core)` job 带 `-D warnings`，任何告警即失败。首轮（run 45827051217）命中 3 处，
+与方案预判一致，已修复：
+
+| 位置 | lint | 处理 |
+|---|---|---|
+| `model.rs` `TaskStatus::from_str` | `should_implement_trait` | 改名 `from_db_str`（宽松回退语义与 `FromStr` 契约不符，不实现 trait） |
+| `model.rs` `PomodoroKind::from_str` | `should_implement_trait` | 同上 |
+| `repo.rs` `update_task_details`（8 参数） | `too_many_arguments` | 暂加 `#[allow]` + TODO，P2 收敛为 `TaskEdit` 结构体 |
+
+加 `allow` 而非立即重构的原因：`update_task_details` 的调用点在 `crates/app`，
+而 app 侧当前没有编译验证通道，P0 阶段不动它是风险最小解。
+
 ## 缓存与并发
 
 - `CARGO_TARGET_DIR` 按 job 分目录（`target-clippy` / `target-test`），
