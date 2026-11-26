@@ -1,0 +1,97 @@
+name: CI
+
+# 只跑可跨平台部分。app / plugin 依赖 Windows 专属 API，
+# 在 Linux runner 上编译通过是假信号，见 docs/adr/ADR-0002-ci-self-hosted-qc.md。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: [self-hosted, qc]
+    timeout-minutes: 10
+    # 公开仓库 + self-hosted：拒绝 fork PR，否则任何人都能在 runner 主机上执行任意代码
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Show toolchain
+        run: rustup show
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy (core)
+    runs-on: [self-hosted, qc]
+    timeout-minutes: 30
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      # 按 job 隔离 target 目录，避免同机多个 cargo 抢同一目录互锁 .o 文件
+      CARGO_TARGET_DIR: /var/cache/ticktick/target-clippy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Show toolchain
+        run: rustup show
+      - name: Install clippy
+        run: rustup component add clippy
+      - name: cargo clippy
+        run: cargo clippy -p ticktick-core --all-targets --locked -- -D warnings
+
+  test:
+    name: test (core)
+    runs-on: [self-hosted, qc]
+    timeout-minutes: 30
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      CARGO_TARGET_DIR: /var/cache/ticktick/target-test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Show toolchain
+        run: rustup show
+      - name: cargo test
+        run: cargo test -p ticktick-core --locked
+
+  docs:
+    name: docs front matter
+    runs-on: [self-hosted, qc]
+    timeout-minutes: 5
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check docs front matter
+        run: |
+          set -e
+          fail=0
+          for f in $(git ls-files 'docs/*/*.md'); do
+            head -1 "$f" | grep -q '^---$' || { echo "::error file=$f::首行必须是 ---（front matter）"; fail=1; }
+            grep -q '^id: '      "$f" || { echo "::error file=$f::缺少 id"; fail=1; }
+            grep -q '^status: '  "$f" || { echo "::error file=$f::缺少 status"; fail=1; }
+            grep -q '^updated: ' "$f" || { echo "::error file=$f::缺少 updated"; fail=1; }
+          done
+          exit $fail

@@ -1,0 +1,11 @@
+[package]
+name = "ticktick-plugin-pomodoro"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Pomodoro timer plugin for TickTick Lite"
+
+[dependencies]
+ticktick-core.workspace = true
+gpui-kit = "0.8.1"
+notify-rust = "4"

@@ -1,0 +1,64 @@
+name: windows-check
+
+# app / plugin 的真实编译验证。
+# 不进 PR 门禁：qc runner 是 Linux，无法构建 Windows 二进制。
+# 需要时手动触发：gh workflow run windows-check.yml -f full_build=true
+on:
+  workflow_dispatch:
+    inputs:
+      full_build:
+        description: "true = 额外跑 cargo build --release（慢）；false = 只 cargo check"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: check (windows)
+    # 用 GitHub 托管 Windows runner，不占用自建 qc。
+    # 若该账户托管 runner 因计费不可分配，此 workflow 会持续 queued，
+    # 退化方案见 docs/guides/build-and-run.md。
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo check (workspace)
+        run: cargo check --workspace --all-targets
+
+      - name: cargo check (no default features)
+        run: cargo check -p ticktick-app --no-default-features
+
+      - name: cargo clippy (workspace)
+        # 首轮只收集告警，不阻断；稳定后再改为门禁
+        continue-on-error: true
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo build release
+        if: inputs.full_build == 'true'
+        run: cargo build --release -p ticktick-app
+
+      - name: Upload binary
+        if: inputs.full_build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ticktick-windows-x64
+          path: target/release/ticktick.exe
+          if-no-files-found: error

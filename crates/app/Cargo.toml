@@ -1,0 +1,33 @@
+[package]
+name = "ticktick-app"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "TickTick Lite - gpui desktop app shell"
+
+[[bin]]
+name = "ticktick"
+path = "src/main.rs"
+
+[features]
+default = ["pomodoro"]
+pomodoro = ["dep:ticktick-plugin-pomodoro"]
+
+[dependencies]
+ticktick-core.workspace = true
+ticktick-plugin-pomodoro = { path = "../../plugins/pomodoro", optional = true }
+gpui-kit = "0.8.1"
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+directories = "6"
+rfd = "0.15"
+tray-icon = "0.19"
+raw-window-handle = "0.6"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+log = "0.4"
+env_logger = "0.11"

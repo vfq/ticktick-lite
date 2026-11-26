@@ -1,0 +1,15 @@
+/target
+
+# 本地数据库（运行期产物，不入库）
+*.db
+*.db-wal
+*.db-shm
+
+# 代理工作区记忆与本地配置（内部数据，不入库）
+.workbuddy/
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+.vscode/
+*.log

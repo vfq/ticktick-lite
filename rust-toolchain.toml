@@ -1,0 +1,6 @@
+[toolchain]
+channel = "1.98"
+profile = "minimal"
+# 本机只做格式校验（见 AGENTS.md），因此只固定 rustfmt；
+# clippy 由 CI 在 runner 上 `rustup component add clippy` 安装，避免每台开发机重复装。
+components = ["rustfmt"]
